@@ -1,0 +1,1 @@
+ALTER TABLE public.jardines ADD COLUMN holded_project_id text DEFAULT NULL;

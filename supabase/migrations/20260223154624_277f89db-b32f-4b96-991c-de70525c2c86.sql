@@ -1,0 +1,1 @@
+ALTER TABLE public.compras ADD COLUMN importe numeric(10,2) DEFAULT NULL;

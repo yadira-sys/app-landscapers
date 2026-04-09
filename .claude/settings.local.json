@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__Claude_Preview__preview_start",
+      "Bash(npm run:*)",
+      "Bash(npx vite:*)",
+      "Bash(gh auth:*)",
+      "Bash(git --version)",
+      "Read(//c/Users/yadir/.config/**)",
+      "Read(//c/Users/yadir/AppData/Roaming/**)",
+      "Bash(\"C:/Users/yadir/OneDrive/WORK/♥ ME♥/08-:*)"
+    ]
+  }
+}

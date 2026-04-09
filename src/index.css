@@ -1,0 +1,166 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Inter:wght@300;400;500;600&display=swap');
+
+@layer base {
+  :root {
+    /* Vitalia Garden: verde natural, elegante, profesional */
+    --background: 120 15% 97%;
+    --foreground: 150 10% 12%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 150 10% 12%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 150 10% 12%;
+
+    /* Verde Vitalia - color primario */
+    --primary: 142 45% 30%;
+    --primary-foreground: 0 0% 98%;
+
+    --secondary: 142 20% 93%;
+    --secondary-foreground: 142 35% 22%;
+
+    --muted: 120 10% 93%;
+    --muted-foreground: 120 5% 45%;
+
+    /* Accent dorado cálido */
+    --accent: 45 65% 48%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 120 10% 88%;
+    --input: 120 10% 88%;
+    --ring: 142 45% 30%;
+
+    --radius: 0.625rem;
+
+    /* Header Vitalia - verde oscuro profesional */
+    --header-bg: 150 25% 12%;
+    --header-fg: 0 0% 96%;
+
+    /* Nav bottom */
+    --nav-bg: 150 25% 12%;
+    --nav-fg: 0 0% 55%;
+    --nav-active: 142 55% 50%;
+
+    /* Urgencias */
+    --urgencia-alta: 0 72% 51%;
+    --urgencia-media: 38 90% 50%;
+    --urgencia-baja: 142 45% 40%;
+
+    /* Sidebar */
+    --sidebar-background: 150 25% 12%;
+    --sidebar-foreground: 0 0% 80%;
+    --sidebar-primary: 142 55% 45%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 150 20% 16%;
+    --sidebar-accent-foreground: 0 0% 80%;
+    --sidebar-border: 150 15% 18%;
+    --sidebar-ring: 142 55% 45%;
+  }
+
+  .dark {
+    --background: 150 20% 6%;
+    --foreground: 0 0% 95%;
+    --card: 150 18% 9%;
+    --card-foreground: 0 0% 95%;
+    --popover: 150 18% 9%;
+    --popover-foreground: 0 0% 95%;
+    --primary: 142 50% 42%;
+    --primary-foreground: 0 0% 5%;
+    --secondary: 150 15% 14%;
+    --secondary-foreground: 0 0% 90%;
+    --muted: 150 12% 14%;
+    --muted-foreground: 0 0% 55%;
+    --accent: 45 55% 50%;
+    --accent-foreground: 0 0% 5%;
+    --destructive: 0 62% 40%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 150 12% 18%;
+    --input: 150 12% 18%;
+    --ring: 142 50% 42%;
+    --header-bg: 150 25% 5%;
+    --header-fg: 0 0% 95%;
+    --nav-bg: 150 25% 5%;
+    --nav-fg: 0 0% 50%;
+    --nav-active: 142 55% 50%;
+    --sidebar-background: 150 25% 5%;
+    --sidebar-foreground: 0 0% 80%;
+    --sidebar-primary: 142 55% 45%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 150 18% 9%;
+    --sidebar-accent-foreground: 0 0% 80%;
+    --sidebar-border: 150 12% 12%;
+    --sidebar-ring: 142 55% 45%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  html {
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Inter', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    overscroll-behavior: none;
+    padding-top: env(safe-area-inset-top);
+  }
+  h1, h2, h3 {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+  }
+  /* Better touch targets */
+  button, a, [role="button"] {
+    min-height: 36px;
+    min-width: 36px;
+  }
+  /* Fix iOS input zoom */
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="tel"],
+  input[type="number"],
+  input[type="date"],
+  input[type="time"],
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+@layer utilities {
+  .font-display {
+    font-family: 'Playfair Display', Georgia, serif;
+  }
+  .urgencia-alta { color: hsl(var(--urgencia-alta)); }
+  .urgencia-media { color: hsl(var(--urgencia-media)); }
+  .urgencia-baja { color: hsl(var(--urgencia-baja)); }
+  .bg-urgencia-alta { background-color: hsl(var(--urgencia-alta) / 0.12); }
+  .bg-urgencia-media { background-color: hsl(var(--urgencia-media) / 0.12); }
+  .bg-urgencia-baja { background-color: hsl(var(--urgencia-baja) / 0.12); }
+
+  /* Hide scrollbar for bottom nav */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Active state feedback for mobile */
+  .active\:scale-95:active {
+    transform: scale(0.95);
+  }
+}
