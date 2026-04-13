@@ -70,16 +70,16 @@ export default function Login() {
     >
       {/* Logo */}
       <div className="mb-8 text-center">
-        <img 
-          src={vitaliaLogo} 
-          alt="Vitalia Garden" 
+        <img
+          src={vitaliaLogo}
+          alt="Landscapers"
           className="h-28 w-28 mx-auto mb-4 rounded-full bg-white/95 p-2 shadow-lg"
         />
         <h1
           className="font-display tracking-wide text-2xl font-medium"
           style={{ color: "hsl(0 0% 96%)" }}
         >
-          Vitalia Garden
+          Landscapers
         </h1>
         <div
           className="h-px w-24 mx-auto my-3"
@@ -189,7 +189,7 @@ export default function Login() {
               <Input
                 id="email"
                 type="email"
-                placeholder="tu@vitaliagarden.com"
+                placeholder="tu@landscapers.es"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -255,7 +255,7 @@ export default function Login() {
         className="mt-12 text-xs tracking-wider"
         style={{ color: "hsl(0 0% 30%)" }}
       >
-        © Vitalia Garden — Uso interno
+        © Landscapers — Uso interno
       </p>
     </div>
   );
