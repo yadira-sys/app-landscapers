@@ -100,43 +100,43 @@ export default function Layout({ children }: { children: ReactNode }) {
       <nav className="fixed bottom-0 left-0 right-0 z-40 border-t" style={{ backgroundColor: "hsl(var(--nav-bg))", borderColor: "hsl(150 15% 18%)", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
         <div className="h-px w-full" style={{ background: "linear-gradient(90deg, transparent, hsl(142 55% 42%), transparent)" }} />
         <div className="relative">
-        <div className="flex items-center py-1.5 overflow-x-auto scrollbar-hide" style={{ WebkitOverflowScrolling: "touch" }}>
-          {navItems.map(item => (
-            <NavLink key={item.to} to={item.to} end={item.to === "/"} className="flex-none" style={{ minWidth: navItems.length > 6 ? "3.5rem" : undefined, flex: navItems.length <= 6 ? "1" : undefined }}>
-              {({ isActive }) => (
-                <div className="flex flex-col items-center gap-0.5 py-1 px-1.5 transition-all active:scale-95">
-                  <div className="relative">
-                    <item.icon className="h-5 w-5 transition-colors shrink-0" style={{ color: isActive ? "hsl(var(--nav-active))" : "hsl(var(--nav-fg))" }} />
-                    {item.to === "/incidencias" && alertaIncidencias > 0 && (
-                      <span
-                        className="absolute -top-1.5 -right-2 min-w-[16px] h-4 flex items-center justify-center rounded-full text-[9px] font-bold text-white px-1"
-                        style={{ backgroundColor: "hsl(0 72% 50%)" }}
-                      >
-                        {alertaIncidencias > 9 ? "9+" : alertaIncidencias}
-                      </span>
-                    )}
-                    {item.to === "/horas" && pendientesCount > 0 && (
-                      <span
-                        className="absolute -top-1.5 -right-2 min-w-[16px] h-4 flex items-center justify-center rounded-full text-[9px] font-bold text-white px-1"
-                        style={{ backgroundColor: "hsl(38 90% 45%)" }}
-                      >
-                        {pendientesCount > 9 ? "9+" : pendientesCount}
-                      </span>
-                    )}
+          <div className="flex items-center py-1.5 overflow-x-auto scrollbar-hide" style={{ WebkitOverflowScrolling: "touch" }}>
+            {navItems.map(item => (
+              <NavLink key={item.to} to={item.to} end={item.to === "/"} className="flex-none" style={{ minWidth: navItems.length > 6 ? "3.5rem" : undefined, flex: navItems.length <= 6 ? "1" : undefined }}>
+                {({ isActive }) => (
+                  <div className="flex flex-col items-center gap-0.5 py-1 px-1.5 transition-all active:scale-95">
+                    <div className="relative">
+                      <item.icon className="h-5 w-5 transition-colors shrink-0" style={{ color: isActive ? "hsl(var(--nav-active))" : "hsl(var(--nav-fg))" }} />
+                      {item.to === "/incidencias" && alertaIncidencias > 0 && (
+                        <span
+                          className="absolute -top-1.5 -right-2 min-w-[16px] h-4 flex items-center justify-center rounded-full text-[9px] font-bold text-white px-1"
+                          style={{ backgroundColor: "hsl(0 72% 50%)" }}
+                        >
+                          {alertaIncidencias > 9 ? "9+" : alertaIncidencias}
+                        </span>
+                      )}
+                      {item.to === "/horas" && pendientesCount > 0 && (
+                        <span
+                          className="absolute -top-1.5 -right-2 min-w-[16px] h-4 flex items-center justify-center rounded-full text-[9px] font-bold text-white px-1"
+                          style={{ backgroundColor: "hsl(38 90% 45%)" }}
+                        >
+                          {pendientesCount > 9 ? "9+" : pendientesCount}
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-[9px] font-medium tracking-wide uppercase truncate w-full text-center" style={{ color: isActive ? "hsl(var(--nav-active))" : "hsl(var(--nav-fg))" }}>
+                      {item.label}
+                    </span>
+                    {isActive && <div className="h-0.5 w-4 rounded-full" style={{ backgroundColor: "hsl(var(--nav-active))" }} />}
                   </div>
-                  <span className="text-[9px] font-medium tracking-wide uppercase truncate w-full text-center" style={{ color: isActive ? "hsl(var(--nav-active))" : "hsl(var(--nav-fg))" }}>
-                    {item.label}
-                  </span>
-                  {isActive && <div className="h-0.5 w-4 rounded-full" style={{ backgroundColor: "hsl(var(--nav-active))" }} />}
-                </div>
-              )}
-            </NavLink>
-          ))}
-        </div>
-        {navItems.length > 6 && (
-          <div className="absolute right-0 top-0 bottom-0 w-6 pointer-events-none"
-            style={{ background: "linear-gradient(to right, transparent, hsl(var(--nav-bg)))" }} />
-        )}
+                )}
+              </NavLink>
+            ))}
+          </div>
+          {navItems.length > 6 && (
+            <div className="absolute right-0 top-0 bottom-0 w-6 pointer-events-none"
+              style={{ background: "linear-gradient(to right, transparent, hsl(var(--nav-bg)))" }} />
+          )}
         </div>
       </nav>
     </div>
