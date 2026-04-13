@@ -12,7 +12,11 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
-import { CheckSquare, Loader2, Plus, Pencil, ExternalLink, UserCheck } from "lucide-react";
+import { CheckSquare, Loader2, Plus, Pencil, ExternalLink, UserCheck, Trash2 } from "lucide-react";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 
 interface Tarea {
@@ -64,8 +68,10 @@ export default function Tareas() {
   const [loading, setLoading] = useState(true);
   const [filtro, setFiltro] = useState("activas");
   const [editTarget, setEditTarget] = useState<Tarea | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Tarea | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   // Form state
   const [fNombre, setFNombre] = useState("");
@@ -150,6 +156,15 @@ export default function Tareas() {
       else { toast({ title: "Tarea creada" }); setShowCreate(false); fetchData(); }
     }
     setSaving(false);
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    const { error } = await supabase.from("tareas").delete().eq("id", deleteTarget.id);
+    if (error) toast({ title: "Error al eliminar", description: error.message, variant: "destructive" });
+    else { toast({ title: "Tarea eliminada" }); setDeleteTarget(null); fetchData(); }
+    setDeleting(false);
   };
 
   const handleMarcarHecha = async (t: Tarea) => {
@@ -347,10 +362,16 @@ export default function Tareas() {
                         </a>
                       )}
                       {isStaff ? (
-                        <button onClick={() => openEdit(t)}
-                          className="p-1.5 rounded-lg" style={{ color: "hsl(0 0% 38%)" }}>
-                          <Pencil className="h-3.5 w-3.5" />
-                        </button>
+                        <>
+                          <button onClick={() => openEdit(t)}
+                            className="p-1.5 rounded-lg" style={{ color: "hsl(0 0% 38%)" }}>
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                          <button onClick={() => setDeleteTarget(t)}
+                            className="p-1.5 rounded-lg" style={{ color: "hsl(0 72% 50% / 0.6)" }}>
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </>
                       ) : (
                         <button onClick={() => handleMarcarHecha(t)}
                           className="p-1.5 rounded-lg transition-colors"
@@ -386,6 +407,27 @@ export default function Tareas() {
           <FormBody />
         </DialogContent>
       </Dialog>
+
+      {/* Delete confirmation */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={o => { if (!o) setDeleteTarget(null); }}>
+        <AlertDialogContent style={{ backgroundColor: "hsl(150 22% 13%)", border: "1px solid hsl(150 10% 22%)" }}>
+          <AlertDialogHeader>
+            <AlertDialogTitle style={{ color: "hsl(0 0% 92%)" }}>Eliminar tarea</AlertDialogTitle>
+            <AlertDialogDescription style={{ color: "hsl(0 0% 50%)" }}>
+              ¿Seguro que quieres eliminar "{deleteTarget?.nombre}"? Esta acción no se puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel style={{ backgroundColor: "hsl(150 15% 20%)", color: "hsl(0 0% 70%)", border: "none" }}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} disabled={deleting}
+              style={{ backgroundColor: "hsl(0 60% 35%)", color: "hsl(0 0% 96%)" }}>
+              {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Eliminar"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

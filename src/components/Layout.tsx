@@ -99,9 +99,10 @@ export default function Layout({ children }: { children: ReactNode }) {
       {/* Bottom nav */}
       <nav className="fixed bottom-0 left-0 right-0 z-40 border-t" style={{ backgroundColor: "hsl(var(--nav-bg))", borderColor: "hsl(150 15% 18%)", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
         <div className="h-px w-full" style={{ background: "linear-gradient(90deg, transparent, hsl(142 55% 42%), transparent)" }} />
+        <div className="relative">
         <div className="flex items-center py-1.5 overflow-x-auto scrollbar-hide" style={{ WebkitOverflowScrolling: "touch" }}>
           {navItems.map(item => (
-            <NavLink key={item.to} to={item.to} end={item.to === "/"} className="flex-none" style={{ minWidth: navItems.length > 6 ? "4rem" : undefined, flex: navItems.length <= 6 ? "1" : undefined }}>
+            <NavLink key={item.to} to={item.to} end={item.to === "/"} className="flex-none" style={{ minWidth: navItems.length > 6 ? "3.5rem" : undefined, flex: navItems.length <= 6 ? "1" : undefined }}>
               {({ isActive }) => (
                 <div className="flex flex-col items-center gap-0.5 py-1 px-1.5 transition-all active:scale-95">
                   <div className="relative">
@@ -131,6 +132,11 @@ export default function Layout({ children }: { children: ReactNode }) {
               )}
             </NavLink>
           ))}
+        </div>
+        {navItems.length > 6 && (
+          <div className="absolute right-0 top-0 bottom-0 w-6 pointer-events-none"
+            style={{ background: "linear-gradient(to right, transparent, hsl(var(--nav-bg)))" }} />
+        )}
         </div>
       </nav>
     </div>
