@@ -1,8 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -12,7 +10,11 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
-import { FileText, Plus, Loader2, ExternalLink, Pencil } from "lucide-react";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { FileText, Plus, Loader2, ExternalLink, Pencil, Trash2, Camera, X, Image } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface Presupuesto {
@@ -28,23 +30,36 @@ interface Presupuesto {
 
 const ESTADOS = ["Pendiente de enviar", "Pendiente de respuesta", "Aceptado", "Rechazado"];
 
-const estadoColor: Record<string, { bg: string; text: string }> = {
-  "Pendiente de enviar": { bg: "hsl(38 90% 45% / 0.15)", text: "hsl(38 90% 60%)" },
-  "Pendiente de respuesta": { bg: "hsl(210 80% 50% / 0.15)", text: "hsl(210 80% 65%)" },
-  "Aceptado": { bg: "hsl(142 55% 40% / 0.2)", text: "hsl(142 55% 55%)" },
-  "Rechazado": { bg: "hsl(0 72% 50% / 0.15)", text: "hsl(0 72% 65%)" },
+const SUPABASE_URL = "https://imngbfxhtkjntavwzwuv.supabase.co";
+
+const columnStyle: Record<string, { header: string; dot: string }> = {
+  "Pendiente de enviar":    { header: "hsl(38 90% 60%)",  dot: "hsl(38 90% 55%)" },
+  "Pendiente de respuesta": { header: "hsl(210 80% 65%)", dot: "hsl(210 80% 60%)" },
+  "Aceptado":               { header: "hsl(142 55% 55%)", dot: "hsl(142 55% 50%)" },
+  "Rechazado":              { header: "hsl(0 72% 60%)",   dot: "hsl(0 72% 55%)" },
 };
 
 const fmt = new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" });
 
+function publicUrl(path: string) {
+  return `${SUPABASE_URL}/storage/v1/object/public/presupuestos/${path}`;
+}
+
 export default function Presupuestos() {
   const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [items, setItems] = useState<Presupuesto[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filtro, setFiltro] = useState("todos");
   const [editTarget, setEditTarget] = useState<Presupuesto | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Presupuesto | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  // Images state for current edit/create
+  const [images, setImages] = useState<string[]>([]); // storage paths
+  const [uploadingImg, setUploadingImg] = useState(false);
+  const [currentId, setCurrentId] = useState<string | null>(null); // presupuesto id for uploads
 
   // Form state
   const [fNombre, setFNombre] = useState("");
@@ -64,12 +79,16 @@ export default function Presupuestos() {
     setLoading(false);
   };
 
+  const loadImages = async (id: string) => {
+    const { data } = await supabase.storage.from("presupuestos").list(id);
+    setImages(data ? data.map(f => `${id}/${f.name}`) : []);
+  };
+
   useEffect(() => { fetchData(); }, []);
 
-  const filtered = filtro === "todos" ? items : items.filter(p => p.estado === filtro);
-
-  const openEdit = (p: Presupuesto) => {
+  const openEdit = async (p: Presupuesto) => {
     setEditTarget(p);
+    setCurrentId(p.id);
     setFNombre(p.nombre);
     setFCliente(p.cliente ?? "");
     setFEstado(p.estado);
@@ -77,11 +96,15 @@ export default function Presupuestos() {
     setFImporte(p.importe != null ? String(p.importe) : "");
     setFNotas(p.notas ?? "");
     setFNotion(p.notion_url ?? "");
+    await loadImages(p.id);
   };
 
   const openCreate = () => {
+    const newId = crypto.randomUUID();
+    setCurrentId(newId);
     setFNombre(""); setFCliente(""); setFEstado(ESTADOS[0]);
     setFFecha(""); setFImporte(""); setFNotas(""); setFNotion("");
+    setImages([]);
     setShowCreate(true);
   };
 
@@ -105,15 +128,50 @@ export default function Presupuestos() {
       if (error) toast({ title: "Error al guardar", description: error.message, variant: "destructive" });
       else { toast({ title: "Presupuesto actualizado" }); setEditTarget(null); fetchData(); }
     } else {
-      const { error } = await supabase.from("presupuestos").insert(payload);
+      const { error } = await supabase.from("presupuestos").insert({ id: currentId!, ...payload });
       if (error) toast({ title: "Error al crear", description: error.message, variant: "destructive" });
       else { toast({ title: "Presupuesto creado" }); setShowCreate(false); fetchData(); }
     }
     setSaving(false);
   };
 
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    // Delete storage folder
+    const { data: files } = await supabase.storage.from("presupuestos").list(deleteTarget.id);
+    if (files && files.length > 0) {
+      await supabase.storage.from("presupuestos").remove(files.map(f => `${deleteTarget.id}/${f.name}`));
+    }
+    const { error } = await supabase.from("presupuestos").delete().eq("id", deleteTarget.id);
+    if (error) toast({ title: "Error al eliminar", description: error.message, variant: "destructive" });
+    else { toast({ title: "Presupuesto eliminado" }); setDeleteTarget(null); fetchData(); }
+    setDeleting(false);
+  };
+
+  const handleUploadImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !currentId) return;
+    setUploadingImg(true);
+    const ext = file.name.split(".").pop() ?? "jpg";
+    const path = `${currentId}/${crypto.randomUUID()}.${ext}`;
+    const { error } = await supabase.storage.from("presupuestos").upload(path, file, { contentType: file.type });
+    if (error) {
+      toast({ title: "Error al subir imagen", description: "Verifica permisos de almacenamiento en el panel de Supabase.", variant: "destructive" });
+    } else {
+      setImages(prev => [...prev, path]);
+    }
+    setUploadingImg(false);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const handleDeleteImage = async (path: string) => {
+    await supabase.storage.from("presupuestos").remove([path]);
+    setImages(prev => prev.filter(p => p !== path));
+  };
+
   const FormBody = () => (
-    <div className="space-y-4 pt-2">
+    <div className="space-y-4 pt-2 overflow-y-auto max-h-[70vh]">
       <div className="space-y-1.5">
         <Label className="text-xs uppercase tracking-widest" style={{ color: "hsl(0 0% 55%)" }}>Nombre *</Label>
         <Input value={fNombre} onChange={e => setFNombre(e.target.value)}
@@ -129,7 +187,8 @@ export default function Presupuestos() {
       <div className="space-y-1.5">
         <Label className="text-xs uppercase tracking-widest" style={{ color: "hsl(0 0% 55%)" }}>Estado</Label>
         <Select value={fEstado} onValueChange={setFEstado}>
-          <SelectTrigger className="border-0 border-b rounded-none bg-transparent focus:ring-0 px-0" style={{ borderColor: "hsl(0 0% 25%)", color: "hsl(0 0% 90%)" }}>
+          <SelectTrigger className="border-0 border-b rounded-none bg-transparent focus:ring-0 px-0"
+            style={{ borderColor: "hsl(0 0% 25%)", color: "hsl(0 0% 90%)" }}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -153,7 +212,7 @@ export default function Presupuestos() {
       </div>
       <div className="space-y-1.5">
         <Label className="text-xs uppercase tracking-widest" style={{ color: "hsl(0 0% 55%)" }}>Notas</Label>
-        <Textarea value={fNotas} onChange={e => setFNotas(e.target.value)} rows={3}
+        <Textarea value={fNotas} onChange={e => setFNotas(e.target.value)} rows={2}
           className="border rounded-md bg-transparent text-sm focus-visible:ring-0 resize-none"
           style={{ color: "hsl(0 0% 90%)", borderColor: "hsl(0 0% 22%)" }} />
       </div>
@@ -163,6 +222,36 @@ export default function Presupuestos() {
           className="border-0 border-b rounded-none bg-transparent text-sm focus-visible:ring-0 focus-visible:border-b-2 px-0"
           style={{ color: "hsl(0 0% 90%)", borderColor: "hsl(0 0% 25%)" }} />
       </div>
+
+      {/* Photos */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <Label className="text-xs uppercase tracking-widest" style={{ color: "hsl(0 0% 55%)" }}>Fotos</Label>
+          <button onClick={() => fileInputRef.current?.click()} disabled={uploadingImg}
+            className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg"
+            style={{ backgroundColor: "hsl(150 15% 20%)", color: "hsl(142 55% 55%)", border: "1px solid hsl(150 10% 28%)" }}>
+            {uploadingImg ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Camera className="h-3.5 w-3.5" />}
+            Añadir foto
+          </button>
+          <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleUploadImage} />
+        </div>
+        {images.length > 0 && (
+          <div className="flex gap-2 flex-wrap">
+            {images.map(path => (
+              <div key={path} className="relative group w-20 h-20 rounded-lg overflow-hidden"
+                style={{ border: "1px solid hsl(150 10% 25%)" }}>
+                <img src={publicUrl(path)} alt="" className="w-full h-full object-cover" />
+                <button onClick={() => handleDeleteImage(path)}
+                  className="absolute top-0.5 right-0.5 p-0.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                  style={{ backgroundColor: "hsl(0 60% 35%)" }}>
+                  <X className="h-3 w-3 text-white" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       <button onClick={handleSave} disabled={saving}
         className="w-full py-3 text-xs tracking-[0.2em] uppercase font-medium rounded-lg transition-all disabled:opacity-50 mt-2"
         style={{ backgroundColor: "hsl(142 45% 30%)", color: "hsl(0 0% 96%)", border: "1px solid hsl(142 40% 38%)" }}>
@@ -171,14 +260,20 @@ export default function Presupuestos() {
     </div>
   );
 
+  // Group by estado
+  const byEstado = ESTADOS.reduce((acc, e) => {
+    acc[e] = items.filter(p => p.estado === e);
+    return acc;
+  }, {} as Record<string, Presupuesto[]>);
+
   return (
-    <div className="p-4 space-y-4">
+    <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between px-4 pt-4 pb-3">
         <div className="flex items-center gap-2">
           <FileText className="h-5 w-5" style={{ color: "hsl(142 55% 50%)" }} />
           <h1 className="text-lg font-medium tracking-wide" style={{ color: "hsl(0 0% 92%)" }}>Presupuestos</h1>
-          <span className="text-xs ml-1" style={{ color: "hsl(0 0% 45%)" }}>{items.length}</span>
+          <span className="text-xs" style={{ color: "hsl(0 0% 45%)" }}>{items.length}</span>
         </div>
         <button onClick={openCreate}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs tracking-wide uppercase font-medium"
@@ -187,78 +282,86 @@ export default function Presupuestos() {
         </button>
       </div>
 
-      {/* Filter tabs */}
-      <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide">
-        {["todos", ...ESTADOS].map(e => (
-          <button key={e} onClick={() => setFiltro(e)}
-            className="flex-none px-3 py-1 rounded-full text-xs font-medium transition-all"
-            style={{
-              backgroundColor: filtro === e ? "hsl(142 45% 28%)" : "hsl(150 15% 16%)",
-              color: filtro === e ? "hsl(0 0% 96%)" : "hsl(0 0% 50%)",
-              border: `1px solid ${filtro === e ? "hsl(142 40% 36%)" : "hsl(150 10% 22%)"}`,
-            }}>
-            {e === "todos" ? "Todos" : e}
-          </button>
-        ))}
-      </div>
-
-      {/* List */}
+      {/* Kanban board — horizontal scroll */}
       {loading ? (
-        <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin" style={{ color: "hsl(142 55% 50%)" }} /></div>
-      ) : filtered.length === 0 ? (
-        <p className="text-center py-12 text-sm" style={{ color: "hsl(0 0% 40%)" }}>No hay presupuestos</p>
+        <div className="flex justify-center py-12">
+          <Loader2 className="h-6 w-6 animate-spin" style={{ color: "hsl(142 55% 50%)" }} />
+        </div>
       ) : (
-        <div className="space-y-2.5">
-          {filtered.map(p => {
-            const col = estadoColor[p.estado] ?? { bg: "hsl(0 0% 20%)", text: "hsl(0 0% 55%)" };
-            return (
-              <Card key={p.id} className="border-0" style={{ backgroundColor: "hsl(150 18% 15%)" }}>
-                <CardContent className="p-3.5">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium leading-snug truncate" style={{ color: "hsl(0 0% 90%)" }}>{p.nombre}</p>
-                      {p.cliente && (
-                        <p className="text-xs mt-0.5" style={{ color: "hsl(0 0% 50%)" }}>{p.cliente}</p>
-                      )}
-                      <div className="flex flex-wrap items-center gap-2 mt-2">
-                        <span className="text-[10px] px-2 py-0.5 rounded-full font-medium"
-                          style={{ backgroundColor: col.bg, color: col.text }}>
-                          {p.estado}
-                        </span>
-                        {p.fecha_envio && (
-                          <span className="text-[10px]" style={{ color: "hsl(0 0% 45%)" }}>
-                            Enviado {new Date(p.fecha_envio).toLocaleDateString("es-ES")}
-                          </span>
-                        )}
-                        {p.importe != null && (
-                          <span className="text-[10px] font-medium" style={{ color: "hsl(142 55% 55%)" }}>
-                            {fmt.format(p.importe)}
-                          </span>
-                        )}
-                      </div>
-                      {p.notas && (
-                        <p className="text-xs mt-1.5 leading-relaxed" style={{ color: "hsl(0 0% 45%)" }}>{p.notas}</p>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      {p.notion_url && (
-                        <a href={p.notion_url} target="_blank" rel="noopener noreferrer"
-                          className="p-1.5 rounded-lg transition-colors"
-                          style={{ color: "hsl(0 0% 40%)" }}>
-                          <ExternalLink className="h-4 w-4" />
-                        </a>
-                      )}
-                      <button onClick={() => openEdit(p)}
-                        className="p-1.5 rounded-lg transition-colors"
-                        style={{ color: "hsl(0 0% 40%)" }}>
-                        <Pencil className="h-4 w-4" />
-                      </button>
-                    </div>
+        <div className="flex-1 overflow-x-auto scrollbar-hide px-4 pb-4"
+          style={{ WebkitOverflowScrolling: "touch" }}>
+          <div className="flex gap-3 h-full" style={{ width: `${ESTADOS.length * 280}px` }}>
+            {ESTADOS.map(estado => {
+              const col = columnStyle[estado];
+              const cards = byEstado[estado] ?? [];
+              return (
+                <div key={estado} className="flex flex-col rounded-xl overflow-hidden"
+                  style={{ width: 272, flexShrink: 0, backgroundColor: "hsl(150 16% 13%)" }}>
+                  {/* Column header */}
+                  <div className="flex items-center gap-2 px-3 py-2.5"
+                    style={{ borderBottom: `2px solid ${col.dot}` }}>
+                    <div className="h-2 w-2 rounded-full" style={{ backgroundColor: col.dot }} />
+                    <span className="text-xs font-medium tracking-wide uppercase" style={{ color: col.header }}>
+                      {estado}
+                    </span>
+                    <span className="ml-auto text-xs" style={{ color: "hsl(0 0% 40%)" }}>{cards.length}</span>
                   </div>
-                </CardContent>
-              </Card>
-            );
-          })}
+                  {/* Cards */}
+                  <div className="flex-1 overflow-y-auto p-2 space-y-2">
+                    {cards.length === 0 && (
+                      <p className="text-center text-xs py-6" style={{ color: "hsl(0 0% 30%)" }}>—</p>
+                    )}
+                    {cards.map(p => (
+                      <div key={p.id} className="rounded-lg p-3 group"
+                        style={{ backgroundColor: "hsl(150 18% 17%)", border: "1px solid hsl(150 10% 22%)" }}>
+                        <div className="flex items-start justify-between gap-1">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium leading-snug" style={{ color: "hsl(0 0% 90%)" }}>
+                              {p.nombre}
+                            </p>
+                            {p.cliente && (
+                              <p className="text-xs mt-0.5 truncate" style={{ color: "hsl(0 0% 48%)" }}>{p.cliente}</p>
+                            )}
+                            <div className="flex flex-wrap items-center gap-2 mt-2">
+                              {p.importe != null && (
+                                <span className="text-xs font-semibold" style={{ color: "hsl(142 55% 55%)" }}>
+                                  {fmt.format(p.importe)}
+                                </span>
+                              )}
+                              {p.fecha_envio && (
+                                <span className="text-[10px]" style={{ color: "hsl(0 0% 40%)" }}>
+                                  {new Date(p.fecha_envio).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit" })}
+                                </span>
+                              )}
+                            </div>
+                            {p.notas && (
+                              <p className="text-xs mt-1.5 leading-relaxed line-clamp-2" style={{ color: "hsl(0 0% 40%)" }}>
+                                {p.notas}
+                              </p>
+                            )}
+                          </div>
+                          <div className="flex flex-col gap-1 shrink-0 opacity-60 group-hover:opacity-100 transition-opacity">
+                            {p.notion_url && (
+                              <a href={p.notion_url} target="_blank" rel="noopener noreferrer"
+                                className="p-1 rounded" style={{ color: "hsl(0 0% 45%)" }}>
+                                <ExternalLink className="h-3.5 w-3.5" />
+                              </a>
+                            )}
+                            <button onClick={() => openEdit(p)} className="p-1 rounded" style={{ color: "hsl(0 0% 45%)" }}>
+                              <Pencil className="h-3.5 w-3.5" />
+                            </button>
+                            <button onClick={() => setDeleteTarget(p)} className="p-1 rounded" style={{ color: "hsl(0 72% 50% / 0.7)" }}>
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 
@@ -281,6 +384,27 @@ export default function Presupuestos() {
           <FormBody />
         </DialogContent>
       </Dialog>
+
+      {/* Delete confirm */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={o => { if (!o) setDeleteTarget(null); }}>
+        <AlertDialogContent style={{ backgroundColor: "hsl(150 22% 13%)", border: "1px solid hsl(150 10% 22%)" }}>
+          <AlertDialogHeader>
+            <AlertDialogTitle style={{ color: "hsl(0 0% 92%)" }}>Eliminar presupuesto</AlertDialogTitle>
+            <AlertDialogDescription style={{ color: "hsl(0 0% 50%)" }}>
+              ¿Eliminar "{deleteTarget?.nombre}"? Se borrarán también las fotos asociadas. Esta acción no se puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel style={{ backgroundColor: "hsl(150 15% 20%)", color: "hsl(0 0% 70%)", border: "none" }}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} disabled={deleting}
+              style={{ backgroundColor: "hsl(0 60% 35%)", color: "hsl(0 0% 96%)" }}>
+              {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Eliminar"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
