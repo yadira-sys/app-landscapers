@@ -2,7 +2,7 @@ import { ReactNode } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import {
-  Home, Clock, AlertTriangle, ShoppingCart, Users, BarChart3, LogOut, TreePine, MapPin, Wrench, ClipboardList, CalendarDays
+  Home, Clock, AlertTriangle, ShoppingCart, Users, BarChart3, LogOut, TreePine, MapPin, Wrench, ClipboardList, CalendarDays, FileText, CheckSquare
 } from "lucide-react";
 
 import { useIncidenciasAlerta } from "@/hooks/useIncidenciasAlerta";
@@ -26,6 +26,7 @@ export default function Layout({ children }: { children: ReactNode }) {
     { to: "/incidencias", label: "Incidencias", icon: AlertTriangle },
     { to: "/gastos", label: "Gastos", icon: ShoppingCart },
     { to: "/historial", label: "Historial", icon: ClipboardList },
+    { to: "/tareas", label: "Tareas", icon: CheckSquare },
   ];
 
   const encargadoNav: NavItem[] = [
@@ -35,6 +36,7 @@ export default function Layout({ children }: { children: ReactNode }) {
     { to: "/horas", label: "Horas", icon: Clock },
     { to: "/incidencias", label: "Incidencias", icon: AlertTriangle },
     { to: "/gastos", label: "Gastos", icon: ShoppingCart },
+    { to: "/tareas", label: "Tareas", icon: CheckSquare },
   ];
 
   const adminNav: NavItem[] = [
@@ -46,6 +48,8 @@ export default function Layout({ children }: { children: ReactNode }) {
     { to: "/gastos", label: "Gastos", icon: ShoppingCart },
     { to: "/jardines", label: "Jardines", icon: TreePine },
     { to: "/trabajadores", label: "Equipo", icon: Users },
+    { to: "/presupuestos", label: "Presuptos.", icon: FileText },
+    { to: "/tareas", label: "Tareas", icon: CheckSquare },
   ];
 
   const navItems = isAdmin ? adminNav : isEncargado ? encargadoNav : trabajadorNav;

@@ -99,7 +99,13 @@ Deno.serve(async (req) => {
       // Prevent self-deletion
       if (user_id === caller.id) throw new Error("No puedes eliminarte a ti mismo");
 
-      // Delete user (cascade will handle profiles, roles, etc.)
+      // Clean up related records that may not cascade automatically
+      await adminClient.from("jornadas").delete().eq("jardinero_id", user_id);
+      await adminClient.from("asignaciones").delete().eq("jardinero_id", user_id);
+      await adminClient.from("user_roles").delete().eq("user_id", user_id);
+      await adminClient.from("profiles").delete().eq("id", user_id);
+
+      // Delete auth user
       const { error: deleteError } = await adminClient.auth.admin.deleteUser(user_id);
       if (deleteError) throw deleteError;
 
