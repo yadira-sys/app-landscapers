@@ -70,7 +70,7 @@ export default function Layout({ children }: { children: ReactNode }) {
           <div className="flex items-center gap-2.5">
             <div className="flex flex-col">
               <span className="font-display tracking-wide text-base leading-none font-medium" style={{ color: "hsl(var(--header-fg))" }}>
-                Vitalia Garden
+                Landscapers
               </span>
               <span className="text-[10px] tracking-[0.12em] uppercase mt-0.5" style={{ color: "hsl(142 55% 50%)" }}>
                 {role ? roleLabel[role] : ""}
