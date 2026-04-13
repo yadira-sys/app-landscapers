@@ -4,6 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import {
   Home, Clock, AlertTriangle, ShoppingCart, Users, BarChart3, LogOut, TreePine, MapPin, Wrench, ClipboardList, CalendarDays
 } from "lucide-react";
+
 import { useIncidenciasAlerta } from "@/hooks/useIncidenciasAlerta";
 import { usePendientesAlerta } from "@/hooks/usePendientesAlerta";
 
@@ -45,7 +46,6 @@ export default function Layout({ children }: { children: ReactNode }) {
     { to: "/gastos", label: "Gastos", icon: ShoppingCart },
     { to: "/jardines", label: "Jardines", icon: TreePine },
     { to: "/trabajadores", label: "Equipo", icon: Users },
-    { to: "/exportar", label: "Holded", icon: Upload },
   ];
 
   const navItems = isAdmin ? adminNav : isEncargado ? encargadoNav : trabajadorNav;

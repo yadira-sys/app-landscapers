@@ -2,8 +2,8 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Clock, Loader2, Download } from "lucide-react";
-import { format, startOfMonth, endOfMonth, subMonths, startOfWeek, endOfWeek } from "date-fns";
+import { Clock, Loader2, Download, CalendarDays, Users } from "lucide-react";
+import { format, startOfMonth, endOfMonth, subMonths, startOfWeek, endOfWeek, eachDayOfInterval, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
 import { exportCsv } from "@/lib/exportCsv";
 
@@ -27,12 +27,15 @@ const estadoColors: Record<string, { color: string; bg: string }> = {
   rechazado: { color: "hsl(0 72% 51%)",   bg: "hsl(0 72% 51% / 0.12)" },
 };
 
+type Vista = "fecha" | "trabajador";
+
 export default function ControlHorario() {
   const { isAdmin } = useAuth();
   const [jornadas, setJornadas] = useState<Jornada[]>([]);
   const [trabajadores, setTrabajadores] = useState<{ id: string; full_name: string }[]>([]);
   const [jardines, setJardines] = useState<{ id: string; nombre: string }[]>([]);
   const [loading, setLoading] = useState(true);
+  const [vista, setVista] = useState<Vista>("fecha");
 
   const [fechaDesde, setFechaDesde] = useState(startOfMonth(new Date()).toISOString().split("T")[0]);
   const [fechaHasta, setFechaHasta] = useState(endOfMonth(new Date()).toISOString().split("T")[0]);
@@ -82,23 +85,52 @@ export default function ControlHorario() {
 
   useEffect(() => { fetchData(); }, [fechaDesde, fechaHasta, filtroTrabajador, filtroJardin, filtroEstado, isAdmin]);
 
-  // Summary by worker
-  const resumenPorTrabajador = trabajadores
-    .map(t => ({
-      ...t,
-      totalHoras: jornadas.filter(j => j.jardinero_id === t.id).reduce((s, j) => s + (j.total_horas ?? 0), 0),
-      count: jornadas.filter(j => j.jardinero_id === t.id).length,
-    }))
-    .filter(t => t.count > 0)
-    .sort((a, b) => b.totalHoras - a.totalHoras);
+  // O(n) summary using Map instead of O(n²) repeated filters
+  const resumenPorTrabajador = (() => {
+    const horasMap = new Map<string, number>();
+    const countMap = new Map<string, number>();
+    for (const j of jornadas) {
+      horasMap.set(j.jardinero_id, (horasMap.get(j.jardinero_id) ?? 0) + (j.total_horas ?? 0));
+      countMap.set(j.jardinero_id, (countMap.get(j.jardinero_id) ?? 0) + 1);
+    }
+    return trabajadores
+      .filter(t => countMap.has(t.id))
+      .map(t => ({ ...t, totalHoras: horasMap.get(t.id) ?? 0, count: countMap.get(t.id) ?? 0 }))
+      .sort((a, b) => b.totalHoras - a.totalHoras);
+  })();
 
   const totalHorasGlobal = jornadas.reduce((s, j) => s + (j.total_horas ?? 0), 0);
 
-  // Group by date
+  // Group by date (for fecha view)
   const jornadasPorFecha = jornadas.reduce((acc, j) => {
     (acc[j.fecha] = acc[j.fecha] ?? []).push(j);
     return acc;
   }, {} as Record<string, Jornada[]>);
+
+  // Daily view: per worker, per day grid
+  const vistaTrabajos = (() => {
+    if (vista !== "trabajador") return null;
+    // Collect all days in range
+    let days: Date[] = [];
+    try {
+      days = eachDayOfInterval({ start: parseISO(fechaDesde), end: parseISO(fechaHasta) });
+    } catch { return null; }
+    // Only show days with any activity
+    const activeDays = days.filter(d => {
+      const ds = d.toISOString().split("T")[0];
+      return jornadas.some(j => j.fecha === ds);
+    });
+
+    // Map: trabajador_id → day → horas
+    const matrix = new Map<string, Map<string, number>>();
+    for (const j of jornadas) {
+      if (!matrix.has(j.jardinero_id)) matrix.set(j.jardinero_id, new Map());
+      const dayMap = matrix.get(j.jardinero_id)!;
+      dayMap.set(j.fecha, (dayMap.get(j.fecha) ?? 0) + (j.total_horas ?? 0));
+    }
+
+    return { activeDays, matrix };
+  })();
 
   return (
     <div className="p-5 space-y-5">
@@ -227,77 +259,164 @@ export default function ControlHorario() {
             </div>
           )}
 
-          {/* Jornadas por fecha */}
-          {Object.keys(jornadasPorFecha).length === 0 ? (
-            <div className="text-center py-16 text-muted-foreground">
-              <Clock className="h-10 w-10 mx-auto mb-3 opacity-20" />
-              <p className="text-sm">No hay registros en este periodo.</p>
+          {/* Vista toggle */}
+          {jornadas.length > 0 && (
+            <div className="flex gap-1.5">
+              <button
+                onClick={() => setVista("fecha")}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-sm border transition-all"
+                style={vista === "fecha"
+                  ? { backgroundColor: "hsl(155 40% 20%)", color: "hsl(0 0% 98%)", borderColor: "hsl(155 40% 30%)" }
+                  : { backgroundColor: "hsl(0 0% 99%)", color: "hsl(30 5% 45%)", borderColor: "hsl(30 10% 82%)" }
+                }
+              >
+                <CalendarDays className="h-3.5 w-3.5" /> Por fecha
+              </button>
+              <button
+                onClick={() => setVista("trabajador")}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-sm border transition-all"
+                style={vista === "trabajador"
+                  ? { backgroundColor: "hsl(155 40% 20%)", color: "hsl(0 0% 98%)", borderColor: "hsl(155 40% 30%)" }
+                  : { backgroundColor: "hsl(0 0% 99%)", color: "hsl(30 5% 45%)", borderColor: "hsl(30 10% 82%)" }
+                }
+              >
+                <Users className="h-3.5 w-3.5" /> Por trabajador
+              </button>
             </div>
-          ) : (
-            <div className="space-y-5">
-              {Object.entries(jornadasPorFecha).map(([fecha, jorns]) => {
-                const totalDia = jorns.reduce((s, j) => s + (j.total_horas ?? 0), 0);
-                return (
-                  <div key={fecha} className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <p
-                        className="text-xs font-medium uppercase tracking-wider"
-                        style={{ color: "hsl(30 5% 42%)" }}
-                      >
-                        {format(new Date(fecha + "T00:00:00"), "EEEE d MMMM", { locale: es })}
-                      </p>
-                      <span className="text-xs font-semibold" style={{ color: "hsl(155 45% 35%)" }}>
-                        {totalDia.toFixed(1)}h
-                      </span>
+          )}
+
+          {/* Vista por fecha */}
+          {vista === "fecha" && (
+            Object.keys(jornadasPorFecha).length === 0 ? (
+              <div className="text-center py-16 text-muted-foreground">
+                <Clock className="h-10 w-10 mx-auto mb-3 opacity-20" />
+                <p className="text-sm">No hay registros en este periodo.</p>
+              </div>
+            ) : (
+              <div className="space-y-5">
+                {Object.entries(jornadasPorFecha).map(([fecha, jorns]) => {
+                  const totalDia = jorns.reduce((s, j) => s + (j.total_horas ?? 0), 0);
+                  return (
+                    <div key={fecha} className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs font-medium uppercase tracking-wider" style={{ color: "hsl(30 5% 42%)" }}>
+                          {format(new Date(fecha + "T00:00:00"), "EEEE d MMMM", { locale: es })}
+                        </p>
+                        <span className="text-xs font-semibold" style={{ color: "hsl(155 45% 35%)" }}>
+                          {totalDia.toFixed(1)}h
+                        </span>
+                      </div>
+                      <div className="space-y-1.5">
+                        {jorns.map(j => {
+                          const ec = estadoColors[j.estado] ?? estadoColors.pendiente;
+                          return (
+                            <div
+                              key={j.id}
+                              className="rounded-sm border px-3 py-2.5 flex items-center gap-3"
+                              style={{ backgroundColor: "hsl(0 0% 100%)", borderColor: "hsl(30 10% 92%)" }}
+                            >
+                              <div
+                                className="h-7 w-7 rounded-full flex items-center justify-center text-[11px] font-bold text-white shrink-0"
+                                style={{ backgroundColor: "hsl(155 40% 35%)" }}
+                              >
+                                {(j.profiles?.full_name ?? "?").charAt(0).toUpperCase()}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium truncate">{j.profiles?.full_name ?? "—"}</p>
+                                <p className="text-xs truncate" style={{ color: "hsl(30 5% 55%)" }}>
+                                  {j.jardines?.nombre ?? "—"}
+                                </p>
+                                {j.descripcion && (
+                                  <p className="text-xs truncate mt-0.5" style={{ color: "hsl(30 5% 60%)" }}>
+                                    {j.descripcion}
+                                  </p>
+                                )}
+                              </div>
+                              <div className="text-right shrink-0">
+                                <p className="text-xs" style={{ color: "hsl(30 5% 42%)" }}>
+                                  {j.hora_inicio?.slice(0, 5)} – {j.hora_fin?.slice(0, 5)}
+                                </p>
+                                <p className="text-xs font-semibold" style={{ color: "hsl(155 45% 30%)" }}>
+                                  {j.total_horas?.toFixed(1) ?? "—"}h
+                                </p>
+                              </div>
+                              <span
+                                className="text-[9px] font-medium uppercase px-1.5 py-0.5 rounded-sm shrink-0"
+                                style={{ backgroundColor: ec.bg, color: ec.color }}
+                              >
+                                {j.estado}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
-                    <div className="space-y-1.5">
-                      {jorns.map(j => {
-                        const ec = estadoColors[j.estado] ?? estadoColors.pendiente;
+                  );
+                })}
+              </div>
+            )
+          )}
+
+          {/* Vista por trabajador: daily grid */}
+          {vista === "trabajador" && (
+            vistaTrabajos === null || vistaTrabajos.activeDays.length === 0 ? (
+              <div className="text-center py-16 text-muted-foreground">
+                <Clock className="h-10 w-10 mx-auto mb-3 opacity-20" />
+                <p className="text-sm">No hay registros en este periodo.</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {resumenPorTrabajador.map(t => {
+                  const dayMap = vistaTrabajos.matrix.get(t.id);
+                  if (!dayMap) return null;
+                  return (
+                    <div key={t.id} className="rounded-sm border overflow-hidden" style={{ borderColor: "hsl(30 10% 90%)" }}>
+                      {/* Worker header */}
+                      <div
+                        className="flex items-center justify-between px-3 py-2"
+                        style={{ backgroundColor: "hsl(155 40% 40% / 0.08)", borderBottom: "1px solid hsl(30 10% 90%)" }}
+                      >
+                        <div className="flex items-center gap-2">
+                          <div
+                            className="h-6 w-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0"
+                            style={{ backgroundColor: "hsl(155 40% 35%)" }}
+                          >
+                            {t.full_name.charAt(0).toUpperCase()}
+                          </div>
+                          <span className="text-sm font-medium">{t.full_name}</span>
+                        </div>
+                        <span className="text-sm font-bold" style={{ color: "hsl(155 45% 30%)" }}>
+                          {t.totalHoras.toFixed(1)}h
+                        </span>
+                      </div>
+                      {/* Daily rows */}
+                      {vistaTrabajos.activeDays.map((day, idx) => {
+                        const ds = day.toISOString().split("T")[0];
+                        const h = dayMap.get(ds);
+                        if (!h) return null;
                         return (
                           <div
-                            key={j.id}
-                            className="rounded-sm border px-3 py-2.5 flex items-center gap-3"
-                            style={{ backgroundColor: "hsl(0 0% 100%)", borderColor: "hsl(30 10% 92%)" }}
+                            key={ds}
+                            className="flex items-center justify-between px-3 py-2"
+                            style={{
+                              borderBottom: idx < vistaTrabajos.activeDays.length - 1 ? "1px solid hsl(30 10% 94%)" : "none",
+                              backgroundColor: "hsl(0 0% 100%)",
+                            }}
                           >
-                            <div
-                              className="h-7 w-7 rounded-full flex items-center justify-center text-[11px] font-bold text-white shrink-0"
-                              style={{ backgroundColor: "hsl(155 40% 35%)" }}
-                            >
-                              {(j.profiles?.full_name ?? "?").charAt(0).toUpperCase()}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium truncate">{j.profiles?.full_name ?? "—"}</p>
-                              <p className="text-xs truncate" style={{ color: "hsl(30 5% 55%)" }}>
-                                {j.jardines?.nombre ?? "—"}
-                              </p>
-                              {j.descripcion && (
-                                <p className="text-xs truncate mt-0.5" style={{ color: "hsl(30 5% 60%)" }}>
-                                  {j.descripcion}
-                                </p>
-                              )}
-                            </div>
-                            <div className="text-right shrink-0">
-                              <p className="text-xs" style={{ color: "hsl(30 5% 42%)" }}>
-                                {j.hora_inicio?.slice(0, 5)} – {j.hora_fin?.slice(0, 5)}
-                              </p>
-                              <p className="text-xs font-semibold" style={{ color: "hsl(155 45% 30%)" }}>
-                                {j.total_horas?.toFixed(1) ?? "—"}h
-                              </p>
-                            </div>
-                            <span
-                              className="text-[9px] font-medium uppercase px-1.5 py-0.5 rounded-sm shrink-0"
-                              style={{ backgroundColor: ec.bg, color: ec.color }}
-                            >
-                              {j.estado}
+                            <span className="text-xs capitalize" style={{ color: "hsl(30 5% 45%)" }}>
+                              {format(day, "EEE d MMM", { locale: es })}
+                            </span>
+                            <span className="text-xs font-semibold" style={{ color: "hsl(155 45% 30%)" }}>
+                              {h.toFixed(1)}h
                             </span>
                           </div>
                         );
                       })}
                     </div>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+            )
           )}
         </>
       )}

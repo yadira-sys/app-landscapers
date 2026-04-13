@@ -301,42 +301,57 @@ export type Database = {
       }
       trabajos_extras: {
         Row: {
+          con_desplazamiento: boolean
           created_at: string
           descripcion: string
           estado: Database["public"]["Enums"]["estado_registro"]
           exportado_holded: boolean
           fecha: string
+          foto_url: string | null
+          fotos_urls: string[] | null
           horas: number | null
           id: string
+          importe: number | null
           jardin_id: string
+          km_desplazamiento: number | null
           notas_revision: string | null
           tipo: Database["public"]["Enums"]["tipo_trabajo_extra"]
           updated_at: string
           usuario_id: string
         }
         Insert: {
+          con_desplazamiento?: boolean
           created_at?: string
           descripcion: string
           estado?: Database["public"]["Enums"]["estado_registro"]
           exportado_holded?: boolean
           fecha?: string
+          foto_url?: string | null
+          fotos_urls?: string[] | null
           horas?: number | null
           id?: string
+          importe?: number | null
           jardin_id: string
+          km_desplazamiento?: number | null
           notas_revision?: string | null
           tipo?: Database["public"]["Enums"]["tipo_trabajo_extra"]
           updated_at?: string
           usuario_id: string
         }
         Update: {
+          con_desplazamiento?: boolean
           created_at?: string
           descripcion?: string
           estado?: Database["public"]["Enums"]["estado_registro"]
           exportado_holded?: boolean
           fecha?: string
+          foto_url?: string | null
+          fotos_urls?: string[] | null
           horas?: number | null
           id?: string
+          importe?: number | null
           jardin_id?: string
+          km_desplazamiento?: number | null
           notas_revision?: string | null
           tipo?: Database["public"]["Enums"]["tipo_trabajo_extra"]
           updated_at?: string
