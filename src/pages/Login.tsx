@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import vitaliaLogo from "@/assets/vitalia-logo.png";
+import landscapersLogo from "@/assets/landscapers-logo.png";
 
 type LoginMode = "email" | "pin";
 
@@ -71,9 +71,9 @@ export default function Login() {
       {/* Logo */}
       <div className="mb-8 text-center">
         <img
-          src={vitaliaLogo}
+          src={landscapersLogo}
           alt="Landscapers"
-          className="h-28 w-28 mx-auto mb-4 rounded-full bg-white/95 p-2 shadow-lg"
+          className="h-16 w-auto mx-auto mb-4"
         />
         <h1
           className="font-display tracking-wide text-2xl font-medium"
