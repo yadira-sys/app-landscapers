@@ -42,7 +42,7 @@ Deno.serve(async (req) => {
       const { email, password, full_name, role, pin } = payload;
       if (!full_name) throw new Error("Nombre obligatorio");
 
-      const finalEmail = email?.trim() || `${crypto.randomUUID().slice(0, 8)}@interno.vitaliagarden.local`;
+      const finalEmail = email?.trim() || `${crypto.randomUUID().slice(0, 8)}@interno.landscapers.local`;
       const finalPassword = password?.trim() || crypto.randomUUID();
 
       if (role !== "jardinero" && (!email?.trim() || !password?.trim())) {

@@ -46,7 +46,7 @@ function useNotificaciones(hasJornada: boolean, isWorker: boolean) {
     if (localStorage.getItem(clave)) return;
 
     localStorage.setItem(clave, "1");
-    new Notification("Vitalia Garden", {
+    new Notification("Landscapers", {
       body: "¡No olvides fichar tu entrada de hoy!",
       icon: "/pwa-192x192.png",
     });

@@ -35,9 +35,9 @@ export default defineConfig(({ mode }) => ({
         ],
       },
       manifest: {
-        name: "Vitalia Garden - Gestión de Jardines",
-        short_name: "Vitalia",
-        description: "App de gestión de mantenimiento de jardines",
+        name: "Landscapers - Gestión de Equipo",
+        short_name: "Landscapers",
+        description: "App interna de gestión de equipo y control horario",
         theme_color: "#1a2e1f",
         background_color: "#1a2e1f",
         display: "standalone",

@@ -273,7 +273,7 @@ export default function GestionTrabajadores() {
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
                         <p className="font-semibold text-sm">{t.full_name}</p>
-                        {!t.email.includes("@interno.vitaliagarden.local") && (
+                        {!t.email.includes("@interno.landscapers.local") && (
                           <p className="text-xs text-muted-foreground truncate">{t.email}</p>
                         )}
                       </div>
