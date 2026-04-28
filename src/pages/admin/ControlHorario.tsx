@@ -57,33 +57,49 @@ export default function ControlHorario() {
     }
   };
 
-  const fetchData = async () => {
-    setLoading(true);
-    let q = supabase
-      .from("jornadas")
-      .select("id, jardinero_id, jardin_id, fecha, hora_inicio, hora_fin, total_horas, descripcion, estado, jardines(nombre), profiles!jornadas_jardinero_id_profiles_fkey(full_name)")
-      .gte("fecha", fechaDesde)
-      .lte("fecha", fechaHasta)
-      .not("hora_fin", "is", null)
-      .order("fecha", { ascending: false });
+  // ── Effect 1: Lookups (trabajadores + jardines). Load once, re-fetch only when scope changes (isAdmin). ──
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const [trabajadoresRes, jardinesRes] = await Promise.all([
+        supabase.from("profiles").select("id, full_name").order("full_name"),
+        (() => {
+          let jq = supabase.from("jardines").select("id, nombre").eq("activo", true);
+          if (!isAdmin) jq = jq.eq("admin_only", false);
+          return jq.order("nombre");
+        })(),
+      ]);
+      if (cancelled) return;
+      if (trabajadoresRes.data) setTrabajadores(trabajadoresRes.data);
+      if (jardinesRes.data) setJardines(jardinesRes.data);
+    })();
+    return () => { cancelled = true; };
+  }, [isAdmin]);
 
-    if (filtroTrabajador !== "todos") q = q.eq("jardinero_id", filtroTrabajador);
-    if (filtroJardin !== "todos") q = q.eq("jardin_id", filtroJardin);
-    if (filtroEstado !== "todos") q = q.eq("estado", filtroEstado as any);
+  // ── Effect 2: Jornadas. Re-fetched whenever filter inputs change. ──
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      let q = supabase
+        .from("jornadas")
+        .select("id, jardinero_id, jardin_id, fecha, hora_inicio, hora_fin, total_horas, descripcion, estado, jardines(nombre), profiles!jornadas_jardinero_id_profiles_fkey(full_name)")
+        .gte("fecha", fechaDesde)
+        .lte("fecha", fechaHasta)
+        .not("hora_fin", "is", null)
+        .order("fecha", { ascending: false });
 
-    const [jornadasRes, trabajadoresRes, jardinesRes] = await Promise.all([
-      q.limit(500),
-      supabase.from("profiles").select("id, full_name").order("full_name"),
-      (() => { let jq = supabase.from("jardines").select("id, nombre").eq("activo", true); if (!isAdmin) jq = jq.eq("admin_only", false); return jq.order("nombre"); })(),
-    ]);
+      if (filtroTrabajador !== "todos") q = q.eq("jardinero_id", filtroTrabajador);
+      if (filtroJardin !== "todos") q = q.eq("jardin_id", filtroJardin);
+      if (filtroEstado !== "todos") q = q.eq("estado", filtroEstado as any);
 
-    if (jornadasRes.data) setJornadas(jornadasRes.data as unknown as Jornada[]);
-    if (trabajadoresRes.data) setTrabajadores(trabajadoresRes.data);
-    if (jardinesRes.data) setJardines(jardinesRes.data);
-    setLoading(false);
-  };
-
-  useEffect(() => { fetchData(); }, [fechaDesde, fechaHasta, filtroTrabajador, filtroJardin, filtroEstado, isAdmin]);
+      const jornadasRes = await q.limit(500);
+      if (cancelled) return;
+      if (jornadasRes.data) setJornadas(jornadasRes.data as unknown as Jornada[]);
+      setLoading(false);
+    })();
+    return () => { cancelled = true; };
+  }, [fechaDesde, fechaHasta, filtroTrabajador, filtroJardin, filtroEstado]);
 
   // O(n) summary using Map instead of O(n²) repeated filters
   const resumenPorTrabajador = (() => {

@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
  * Returns count of open incidents older than 48h.
  * Cached for 5 min to avoid repeated queries on navigation.
  */
-export function useIncidenciasAlerta() {
+export function useIncidenciasAlerta(enabled: boolean = true) {
   const { data = 0 } = useQuery({
     queryKey: ["alerta-incidencias"],
     queryFn: async () => {
@@ -18,6 +18,7 @@ export function useIncidenciasAlerta() {
       return count ?? 0;
     },
     staleTime: 5 * 60 * 1000,
+    enabled,
   });
 
   return data;

@@ -224,7 +224,7 @@ export default function TrabajosExtras() {
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
           onClick={() => setLightboxUrl(null)}
         >
-          <img src={lightboxUrl} alt="foto" className="max-w-full max-h-full object-contain rounded" />
+          <img src={lightboxUrl} alt="Foto ampliada de trabajo extra" loading="lazy" decoding="async" className="max-w-full max-h-full object-contain rounded" />
         </div>
       )}
 

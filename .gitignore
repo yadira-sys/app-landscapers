@@ -25,3 +25,17 @@ Thumbs.db
 # Logs
 *.log
 npm-debug.log*
+
+# Ruflo / claude-flow artifacts (init-generated, local-only)
+.claude-flow/
+.swarm/
+.claude/agents/
+.claude/commands/
+.claude/helpers/
+.claude/skills/
+.claude/memory.db
+.claude/settings.json
+.claude/settings.local.json
+.mcp.json
+ruvector.db
+CLAUDE.md

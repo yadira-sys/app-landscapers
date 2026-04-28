@@ -266,14 +266,14 @@ export default function GestionTrabajadores() {
                 <div className="flex items-start gap-3">
                   <div className="rounded-full bg-primary/10 w-10 h-10 flex items-center justify-center shrink-0">
                     <span className="font-bold text-primary text-sm">
-                      {t.full_name.charAt(0).toUpperCase()}
+                      {(t.full_name?.[0] ?? "?").toUpperCase()}
                     </span>
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
                         <p className="font-semibold text-sm">{t.full_name}</p>
-                        {!t.email.includes("@interno.landscapers.local") && (
+                        {t.email && !t.email.includes("@interno.landscapers.local") && (
                           <p className="text-xs text-muted-foreground truncate">{t.email}</p>
                         )}
                       </div>

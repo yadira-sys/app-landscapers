@@ -1,28 +1,11 @@
 import { useEffect, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { LogIn, LogOut, Loader2, Bell } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
-
-interface Jardin {
-  id: string;
-  nombre: string;
-  direccion: string | null;
-}
-
-interface JornadaActiva {
-  id: string;
-  jardin_id: string;
-  entrada_at: string;
-  jardinero_id: string;
-  profiles?: { full_name: string } | null;
-}
-
-interface Companero {
-  nombre: string;
-  entrada_at: string;
-}
+import { useJardinesYJornadas } from "@/hooks/useJardinesYJornadas";
 
 interface Asignacion {
   jardin_id: string;
@@ -69,125 +52,60 @@ function useNotificaciones(hasJornada: boolean, isWorker: boolean) {
 export default function MisJardines() {
   const { user, isEncargado, isAdmin } = useAuth();
   const { toast } = useToast();
-  const [jardines, setJardines] = useState<Jardin[]>([]);
-  const [jornadasActivas, setJornadasActivas] = useState<JornadaActiva[]>([]);
-  const [asignaciones, setAsignaciones] = useState<Asignacion[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [actionLoading, setActionLoading] = useState<string | null>(null);
-  const [companerosMap, setCompanerosMap] = useState<Map<string, Companero[]>>(new Map());
 
   const esVisionGlobal = isAdmin || isEncargado;
-  const miJornadaActiva = jornadasActivas.find(j => j.jardinero_id === user?.id);
+
+  // Shared data: jardines + jornadas activas + companeros
+  const { jardines, jornadasActivas, companerosMap, loading } = useJardinesYJornadas({
+    esVisionGlobal,
+    isAdmin,
+    userId: user?.id,
+  });
+
+  // Asignaciones (only needed for supervisor view; separate concern from jornadas)
+  const { data: asignaciones = [] } = useQuery<Asignacion[]>({
+    queryKey: ["asignaciones", esVisionGlobal],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("asignaciones")
+        .select("jardin_id, jardinero_id, profiles!asignaciones_jardinero_id_profiles_fkey(full_name)")
+        .eq("activo", true);
+      if (error) throw error;
+      return ((data ?? []) as any[]).map((a) => ({
+        jardin_id: a.jardin_id,
+        jardinero_id: a.jardinero_id,
+        jardinero_nombre: a.profiles?.full_name ?? "—",
+      }));
+    },
+    enabled: esVisionGlobal,
+  });
+
+  const miJornadaActiva = jornadasActivas.find((j) => j.jardinero_id === user?.id);
   const { permiso, solicitar } = useNotificaciones(!esVisionGlobal && !!miJornadaActiva, !esVisionGlobal);
 
-  const fetchData = async () => {
-    if (!user) { setLoading(false); return; }
-    setLoading(true);
-    try {
-      let jards: Jardin[] = [];
-      if (esVisionGlobal) {
-        let q = supabase.from("jardines").select("id, nombre, direccion").eq("activo", true);
-        if (!isAdmin) q = q.eq("admin_only", false);
-        const { data } = await q.order("nombre");
-        jards = (data ?? []) as Jardin[];
-      } else {
-        const { data } = await supabase
-          .from("asignaciones")
-          .select("jardin_id, jardines(id, nombre, direccion)")
-          .eq("jardinero_id", user.id)
-          .eq("activo", true);
-        jards = ((data ?? []) as any[]).map(a => a.jardines).filter(Boolean) as Jardin[];
-      }
-      setJardines(jards);
-
-      if (esVisionGlobal) {
-        const { data: jornadas } = await supabase
-          .from("jornadas")
-          .select("id, jardin_id, entrada_at, jardinero_id")
-          .is("salida_at", null);
-        const jornadasData = (jornadas ?? []) as JornadaActiva[];
-        const ids = [...new Set(jornadasData.map(j => j.jardinero_id))];
-        if (ids.length > 0) {
-          const { data: perfiles } = await supabase.from("profiles").select("id, full_name").in("id", ids);
-          const map = new Map((perfiles ?? []).map((p: any) => [p.id, p]));
-          jornadasData.forEach(j => { (j as any).profiles = map.get(j.jardinero_id) ?? null; });
-        }
-        setJornadasActivas(jornadasData);
-
-        const { data: asigData } = await supabase
-          .from("asignaciones")
-          .select("jardin_id, jardinero_id, profiles!asignaciones_jardinero_id_profiles_fkey(full_name)")
-          .eq("activo", true);
-        setAsignaciones(
-          ((asigData ?? []) as any[]).map(a => ({
-            jardin_id: a.jardin_id,
-            jardinero_id: a.jardinero_id,
-            jardinero_nombre: a.profiles?.full_name ?? "—",
-          }))
-        );
-      } else {
-        const { data } = await supabase
-          .from("jornadas")
-          .select("id, jardin_id, entrada_at, jardinero_id")
-          .eq("jardinero_id", user.id)
-          .is("salida_at", null);
-        const propias = (data ?? []) as JornadaActiva[];
-        setJornadasActivas(propias);
-
-        // Fetch companions working today in same gardens
-        const jardinIdsActivos = propias.map(j => j.jardin_id);
-        if (jardinIdsActivos.length > 0) {
-          const hoy = new Date().toISOString().split("T")[0];
-          const { data: otras } = await supabase
-            .from("jornadas")
-            .select("jardin_id, jardinero_id, entrada_at")
-            .in("jardin_id", jardinIdsActivos)
-            .neq("jardinero_id", user.id)
-            .is("salida_at", null)
-            .gte("entrada_at", `${hoy}T00:00:00`);
-          if (otras && otras.length > 0) {
-            const ids = [...new Set(otras.map((o: any) => o.jardinero_id))];
-            const { data: perfs } = await supabase.from("profiles").select("id, full_name").in("id", ids);
-            const perfMap = new Map((perfs ?? []).map((p: any) => [p.id, p.full_name]));
-            const map = new Map<string, Companero[]>();
-            for (const o of otras as any[]) {
-              const list = map.get(o.jardin_id) ?? [];
-              list.push({ nombre: perfMap.get(o.jardinero_id) ?? "Compañero", entrada_at: o.entrada_at });
-              map.set(o.jardin_id, list);
-            }
-            setCompanerosMap(map);
-          } else {
-            setCompanerosMap(new Map());
-          }
-        } else {
-          setCompanerosMap(new Map());
-        }
-      }
-    } catch (e) {
-      console.error("MisJardines error:", e);
-    } finally {
-      setLoading(false);
-    }
+  const refetchAll = () => {
+    queryClient.invalidateQueries({ queryKey: ["jardines-y-jornadas"] });
+    queryClient.invalidateQueries({ queryKey: ["asignaciones"] });
   };
 
-  useEffect(() => { fetchData(); }, [user?.id, isEncargado, isAdmin]);
-
-  const jornadasDeJardin = (jardinId: string) => jornadasActivas.filter(j => j.jardin_id === jardinId);
-  const miJornada = (jardinId: string) => jornadasActivas.find(j => j.jardin_id === jardinId && j.jardinero_id === user?.id);
-  const asignacionDeJardin = (jardinId: string) => asignaciones.find(a => a.jardin_id === jardinId) ?? null;
+  const jornadasDeJardin = (jardinId: string) => jornadasActivas.filter((j) => j.jardin_id === jardinId);
+  const miJornada = (jardinId: string) => jornadasActivas.find((j) => j.jardin_id === jardinId && j.jardinero_id === user?.id);
+  const asignacionDeJardin = (jardinId: string) => asignaciones.find((a) => a.jardin_id === jardinId) ?? null;
 
   const handleCheckIn = async (jardinId: string) => {
     if (!user) return;
     setActionLoading(jardinId);
     const { error } = await supabase.from("jornadas").insert({ jardinero_id: user.id, jardin_id: jardinId });
     if (error) toast({ title: "Error al registrar entrada", variant: "destructive" });
-    else { toast({ title: "✅ Entrada registrada" }); await fetchData(); }
+    else { toast({ title: "✅ Entrada registrada" }); refetchAll(); }
     setActionLoading(null);
   };
 
   const handleCheckOut = async (jornadaId: string) => {
     setActionLoading(jornadaId);
-    const jornada = jornadasActivas.find(j => j.id === jornadaId);
+    const jornada = jornadasActivas.find((j) => j.id === jornadaId);
     const now = new Date();
     let duracion: number | null = null;
     let totalHoras: number | null = null;
@@ -206,7 +124,7 @@ export default function MisJardines() {
       estado: "pendiente" as any,
     }).eq("id", jornadaId);
     if (error) toast({ title: "Error al registrar salida", variant: "destructive" });
-    else { toast({ title: "✅ Salida registrada" }); await fetchData(); }
+    else { toast({ title: "✅ Salida registrada" }); refetchAll(); }
     setActionLoading(null);
   };
 
@@ -249,7 +167,7 @@ export default function MisJardines() {
         </div>
       ) : (
         <div className="space-y-3">
-          {jardines.map(jardin => {
+          {jardines.map((jardin) => {
             const jornadas = jornadasDeJardin(jardin.id);
             const miJorn = miJornada(jardin.id);
             const asignacion = asignacionDeJardin(jardin.id);
@@ -348,11 +266,11 @@ export default function MisJardines() {
                       <p className="text-xs italic" style={{ color: "hsl(30 5% 60%)" }}>Sin jardinero asignado</p>
                     )}
 
-                    {jornadas.map(j => (
+                    {jornadas.map((j) => (
                       <div key={j.id} className="flex items-center gap-2">
                         <div className="h-1.5 w-1.5 rounded-full animate-pulse shrink-0" style={{ backgroundColor: "hsl(155 45% 45%)" }} />
                         <span className="text-xs flex-1" style={{ color: "hsl(155 40% 38%)" }}>
-                          {(j as any).profiles?.full_name ?? "Jardinero"} · desde {format(new Date(j.entrada_at), "HH:mm")}
+                          {j.profiles?.full_name ?? "Jardinero"} · desde {format(new Date(j.entrada_at), "HH:mm")}
                         </span>
                         <button
                           disabled={!!actionLoading}

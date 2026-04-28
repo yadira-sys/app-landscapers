@@ -17,8 +17,9 @@ interface NavItem {
 export default function Layout({ children }: { children: ReactNode }) {
   const { profile, role, signOut, isAdmin, isEncargado } = useAuth();
   const navigate = useNavigate();
-  const alertaIncidencias = useIncidenciasAlerta();
-  const pendientesCount = usePendientesAlerta();
+  const isStaff = isAdmin || isEncargado;
+  const alertaIncidencias = useIncidenciasAlerta(isStaff);
+  const pendientesCount = usePendientesAlerta(isStaff);
 
   const trabajadorNav: NavItem[] = [
     { to: "/", label: "Fichar", icon: MapPin },
@@ -85,8 +86,8 @@ export default function Layout({ children }: { children: ReactNode }) {
             <span className="text-sm font-light" style={{ color: "hsl(var(--header-fg) / 0.7)" }}>
               {profile?.full_name?.split(" ")[0] || ""}
             </span>
-            <button onClick={handleSignOut} className="p-2 rounded-full transition-colors" style={{ color: "hsl(var(--header-fg) / 0.6)" }} title="Cerrar sesión">
-              <LogOut className="h-4 w-4" />
+            <button onClick={handleSignOut} className="p-2 rounded-full transition-colors" style={{ color: "hsl(var(--header-fg) / 0.6)" }} title="Cerrar sesión" aria-label="Cerrar sesión">
+              <LogOut className="h-4 w-4" aria-hidden="true" />
             </button>
           </div>
         </div>

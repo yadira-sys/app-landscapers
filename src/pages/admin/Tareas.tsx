@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+// REFACTORED: react-query migration — see this file as the pattern for migrating other admin pages.
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -61,17 +62,13 @@ const prioridadColor: Record<string, string> = {
 export default function Tareas() {
   const { role, user } = useAuth();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const isStaff = role === "admin" || role === "dueno" || role === "encargado";
 
-  const [tareas, setTareas] = useState<Tarea[]>([]);
-  const [trabajadores, setTrabajadores] = useState<Trabajador[]>([]);
-  const [loading, setLoading] = useState(true);
   const [filtro, setFiltro] = useState("activas");
   const [editTarget, setEditTarget] = useState<Tarea | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Tarea | null>(null);
   const [showCreate, setShowCreate] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [deleting, setDeleting] = useState(false);
 
   // Form state
   const [fNombre, setFNombre] = useState("");
@@ -82,31 +79,82 @@ export default function Tareas() {
   const [fNotas, setFNotas] = useState("");
   const [fNotion, setFNotion] = useState("");
 
-  const fetchData = async () => {
-    const queries: Promise<any>[] = [
-      isStaff
+  // ── Tareas list query ──
+  const { data: tareas = [], isLoading: loading } = useQuery<Tarea[]>({
+    queryKey: ["tareas", isStaff, user?.id],
+    queryFn: async () => {
+      const q = isStaff
         ? supabase.from("tareas").select("*").order("created_at", { ascending: false })
-        : supabase.from("tareas").select("*").eq("asignado_a", user!.id).order("created_at", { ascending: false }),
-    ];
-    if (isStaff) {
-      queries.push(
-        supabase.from("profiles").select("id, full_name").then(async (res) => {
-          if (!res.data) return res;
-          const rolesRes = await supabase.from("user_roles").select("user_id, role");
-          const rolesMap: Record<string, string> = {};
-          (rolesRes.data ?? []).forEach((r: any) => { rolesMap[r.user_id] = r.role; });
-          return { data: res.data.map((p: any) => ({ ...p, role: rolesMap[p.id] ?? null })) };
-        })
-      );
-    }
+        : supabase.from("tareas").select("*").eq("asignado_a", user!.id).order("created_at", { ascending: false });
+      const { data, error } = await q;
+      if (error) throw error;
+      return (data ?? []) as Tarea[];
+    },
+    enabled: isStaff || !!user?.id,
+  });
 
-    const [tareasRes, trabajadoresRes] = await Promise.all(queries);
-    if (tareasRes?.data) setTareas(tareasRes.data as Tarea[]);
-    if (trabajadoresRes?.data) setTrabajadores(trabajadoresRes.data as Trabajador[]);
-    setLoading(false);
-  };
+  // ── Trabajadores lookup query (only for staff) ──
+  const { data: trabajadores = [] } = useQuery<Trabajador[]>({
+    queryKey: ["trabajadores"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("profiles").select("id, full_name");
+      if (error) throw error;
+      const rolesRes = await supabase.from("user_roles").select("user_id, role");
+      const rolesMap: Record<string, string> = {};
+      (rolesRes.data ?? []).forEach((r: any) => { rolesMap[r.user_id] = r.role; });
+      return (data ?? []).map((p: any) => ({ ...p, role: rolesMap[p.id] ?? null })) as Trabajador[];
+    },
+    enabled: isStaff,
+  });
 
-  useEffect(() => { fetchData(); }, []);
+  const invalidateTareas = () => queryClient.invalidateQueries({ queryKey: ["tareas"] });
+
+  // ── Mutations ──
+  const saveMutation = useMutation({
+    mutationFn: async (input: { id?: string; payload: Record<string, any> }) => {
+      if (input.id) {
+        const { error } = await supabase.from("tareas").update(input.payload).eq("id", input.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("tareas").insert(input.payload);
+        if (error) throw error;
+      }
+    },
+    onSuccess: (_data, vars) => {
+      toast({ title: vars.id ? "Tarea actualizada" : "Tarea creada" });
+      if (vars.id) setEditTarget(null); else setShowCreate(false);
+      invalidateTareas();
+    },
+    onError: (err: any) => {
+      toast({ title: "Error al guardar", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("tareas").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast({ title: "Tarea eliminada" });
+      setDeleteTarget(null);
+      invalidateTareas();
+    },
+    onError: (err: any) => {
+      toast({ title: "Error al eliminar", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const toggleHechaMutation = useMutation({
+    mutationFn: async ({ id, nuevoEstado }: { id: string; nuevoEstado: string }) => {
+      const { error } = await supabase.from("tareas").update({ estado: nuevoEstado }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => invalidateTareas(),
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
 
   const filtered = tareas.filter(t => {
     if (filtro === "activas") return t.estado !== "completada";
@@ -131,12 +179,11 @@ export default function Tareas() {
     setShowCreate(true);
   };
 
-  const handleSave = async () => {
+  const handleSave = () => {
     if (!fNombre.trim()) {
       toast({ title: "El nombre es obligatorio", variant: "destructive" });
       return;
     }
-    setSaving(true);
     const payload: Record<string, any> = {
       nombre: fNombre.trim(),
       estado: fEstado,
@@ -146,32 +193,17 @@ export default function Tareas() {
       notas: fNotas.trim() || null,
       notion_url: fNotion.trim() || null,
     };
-    if (editTarget) {
-      const { error } = await supabase.from("tareas").update(payload).eq("id", editTarget.id);
-      if (error) toast({ title: "Error al guardar", description: error.message, variant: "destructive" });
-      else { toast({ title: "Tarea actualizada" }); setEditTarget(null); fetchData(); }
-    } else {
-      const { error } = await supabase.from("tareas").insert(payload);
-      if (error) toast({ title: "Error al crear", description: error.message, variant: "destructive" });
-      else { toast({ title: "Tarea creada" }); setShowCreate(false); fetchData(); }
-    }
-    setSaving(false);
+    saveMutation.mutate({ id: editTarget?.id, payload });
   };
 
-  const handleDelete = async () => {
+  const handleDelete = () => {
     if (!deleteTarget) return;
-    setDeleting(true);
-    const { error } = await supabase.from("tareas").delete().eq("id", deleteTarget.id);
-    if (error) toast({ title: "Error al eliminar", description: error.message, variant: "destructive" });
-    else { toast({ title: "Tarea eliminada" }); setDeleteTarget(null); fetchData(); }
-    setDeleting(false);
+    deleteMutation.mutate(deleteTarget.id);
   };
 
-  const handleMarcarHecha = async (t: Tarea) => {
+  const handleMarcarHecha = (t: Tarea) => {
     const nuevoEstado = t.estado === "completada" ? "pendiente" : "completada";
-    const { error } = await supabase.from("tareas").update({ estado: nuevoEstado }).eq("id", t.id);
-    if (error) toast({ title: "Error", description: error.message, variant: "destructive" });
-    else fetchData();
+    toggleHechaMutation.mutate({ id: t.id, nuevoEstado });
   };
 
   const nombreAsignado = (id: string | null) => {
@@ -179,7 +211,12 @@ export default function Tareas() {
     return trabajadores.find(t => t.id === id)?.full_name ?? null;
   };
 
-  const FormBody = () => (
+  const saving = saveMutation.isPending;
+  const deleting = deleteMutation.isPending;
+
+  // FormBody inlined as a JSX expression (NOT a nested component) so React keeps
+  // the same input nodes between renders — fixes input focus loss bug.
+  const formBody = (
     <div className="space-y-4 pt-2">
       <div className="space-y-1.5">
         <Label className="text-xs uppercase tracking-widest" style={{ color: "hsl(0 0% 55%)" }}>Tarea *</Label>
@@ -394,7 +431,7 @@ export default function Tareas() {
           <DialogHeader>
             <DialogTitle style={{ color: "hsl(0 0% 92%)" }}>Editar tarea</DialogTitle>
           </DialogHeader>
-          <FormBody />
+          {formBody}
         </DialogContent>
       </Dialog>
 
@@ -404,7 +441,7 @@ export default function Tareas() {
           <DialogHeader>
             <DialogTitle style={{ color: "hsl(0 0% 92%)" }}>Nueva tarea</DialogTitle>
           </DialogHeader>
-          <FormBody />
+          {formBody}
         </DialogContent>
       </Dialog>
 

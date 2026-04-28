@@ -1,6 +1,5 @@
 import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -14,7 +13,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { FileText, Plus, Loader2, ExternalLink, Pencil, Trash2, Camera, X, Image } from "lucide-react";
+import { FileText, Plus, Loader2, ExternalLink, Pencil, Trash2, Camera, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface Presupuesto {
@@ -30,8 +29,6 @@ interface Presupuesto {
 
 const ESTADOS = ["Pendiente de enviar", "Pendiente de respuesta", "Aceptado", "Rechazado"];
 
-const SUPABASE_URL = "https://imngbfxhtkjntavwzwuv.supabase.co";
-
 const columnStyle: Record<string, { header: string; dot: string }> = {
   "Pendiente de enviar":    { header: "hsl(38 90% 60%)",  dot: "hsl(38 90% 55%)" },
   "Pendiente de respuesta": { header: "hsl(210 80% 65%)", dot: "hsl(210 80% 60%)" },
@@ -42,7 +39,7 @@ const columnStyle: Record<string, { header: string; dot: string }> = {
 const fmt = new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" });
 
 function publicUrl(path: string) {
-  return `${SUPABASE_URL}/storage/v1/object/public/presupuestos/${path}`;
+  return supabase.storage.from("presupuestos").getPublicUrl(path).data.publicUrl;
 }
 
 export default function Presupuestos() {
@@ -170,7 +167,9 @@ export default function Presupuestos() {
     setImages(prev => prev.filter(p => p !== path));
   };
 
-  const FormBody = () => (
+  // FormBody inlined as a JSX expression (NOT a nested component) so React keeps
+  // the same DOM nodes (and fileInputRef) across renders — fixes input focus loss bug.
+  const formBody = (
     <div className="space-y-4 pt-2 overflow-y-auto max-h-[70vh]">
       <div className="space-y-1.5">
         <Label className="text-xs uppercase tracking-widest" style={{ color: "hsl(0 0% 55%)" }}>Nombre *</Label>
@@ -240,7 +239,7 @@ export default function Presupuestos() {
             {images.map(path => (
               <div key={path} className="relative group w-20 h-20 rounded-lg overflow-hidden"
                 style={{ border: "1px solid hsl(150 10% 25%)" }}>
-                <img src={publicUrl(path)} alt="" className="w-full h-full object-cover" />
+                <img src={publicUrl(path)} alt="Foto del presupuesto" loading="lazy" decoding="async" className="w-full h-full object-cover" />
                 <button onClick={() => handleDeleteImage(path)}
                   className="absolute top-0.5 right-0.5 p-0.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
                   style={{ backgroundColor: "hsl(0 60% 35%)" }}>
@@ -371,7 +370,7 @@ export default function Presupuestos() {
           <DialogHeader>
             <DialogTitle style={{ color: "hsl(0 0% 92%)" }}>Editar presupuesto</DialogTitle>
           </DialogHeader>
-          <FormBody />
+          {formBody}
         </DialogContent>
       </Dialog>
 
@@ -381,7 +380,7 @@ export default function Presupuestos() {
           <DialogHeader>
             <DialogTitle style={{ color: "hsl(0 0% 92%)" }}>Nuevo presupuesto</DialogTitle>
           </DialogHeader>
-          <FormBody />
+          {formBody}
         </DialogContent>
       </Dialog>
 

@@ -36,7 +36,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const [roleRes, profileRes] = await Promise.all([
         supabase.from("user_roles").select("role").eq("user_id", userId).maybeSingle(),
-        supabase.from("profiles").select("*").eq("id", userId).maybeSingle(),
+        supabase.from("profiles").select("id, full_name, email").eq("id", userId).maybeSingle(),
       ]);
       if (roleRes.data) setRole(roleRes.data.role as AppRole);
       if (profileRes.data) setProfile(profileRes.data as Profile);

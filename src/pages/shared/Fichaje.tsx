@@ -1,25 +1,12 @@
 import { useEffect, useState, useCallback } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { TreePine, LogIn, LogOut, Loader2, Clock, RefreshCw, History, X } from "lucide-react";
+import { TreePine, LogIn, LogOut, Loader2, Clock, RefreshCw, History } from "lucide-react";
 import { format } from "date-fns";
-import { es } from "date-fns/locale";
 import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-
-interface Jardin {
-  id: string;
-  nombre: string;
-  direccion: string | null;
-}
-
-interface JornadaActiva {
-  id: string;
-  jardin_id: string;
-  entrada_at: string;
-  jardinero_id: string;
-  profiles?: { full_name: string } | null;
-}
+import { useJardinesYJornadas } from "@/hooks/useJardinesYJornadas";
 
 /** Ensure we have a valid session, refreshing if needed. Timeout after 8s. */
 async function ensureSession(): Promise<boolean> {
@@ -44,12 +31,10 @@ async function ensureSession(): Promise<boolean> {
 type TabMode = "tiempo-real" | "a-posteriori";
 
 export default function Fichaje() {
-  const { user, profile, isEncargado, isAdmin, signOut } = useAuth();
+  const { user, isEncargado, isAdmin, signOut } = useAuth();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const esSupervisor = isAdmin || isEncargado;
-  const [jardines, setJardines] = useState<Jardin[]>([]);
-  const [jornadasActivas, setJornadasActivas] = useState<JornadaActiva[]>([]);
-  const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [tab, setTab] = useState<TabMode>("tiempo-real");
 
@@ -61,6 +46,18 @@ export default function Fichaje() {
   const [retroDescripcion, setRetroDescripcion] = useState("");
   const [retroSubmitting, setRetroSubmitting] = useState(false);
 
+  // Shared data hook (jardines + jornadas activas)
+  const {
+    jardines,
+    jornadasActivas,
+    loading,
+    refetch,
+  } = useJardinesYJornadas({
+    esVisionGlobal: esSupervisor,
+    isAdmin,
+    userId: user?.id,
+  });
+
   const handleSessionExpired = useCallback(() => {
     toast({
       title: "Sesión expirada",
@@ -70,64 +67,20 @@ export default function Fichaje() {
     signOut();
   }, [toast, signOut]);
 
-  const fetchData = useCallback(async (showLoader = true) => {
-    if (!user) { setLoading(false); return; }
-    if (showLoader) setLoading(true);
-    try {
-      const valid = await ensureSession();
-      if (!valid) { handleSessionExpired(); return; }
-
-      let q = supabase.from("jardines").select("id, nombre, direccion").eq("activo", true);
-      if (!isAdmin) q = q.eq("admin_only", false);
-      const { data: jards, error: jardsError } = await q.order("nombre");
-      if (jardsError) {
-        if (jardsError.message?.includes("JWT")) { handleSessionExpired(); return; }
-      }
-      setJardines((jards ?? []) as Jardin[]);
-
-      if (esSupervisor) {
-        const { data: jornadas, error: jErr } = await supabase
-          .from("jornadas")
-          .select("id, jardin_id, entrada_at, jardinero_id")
-          .is("salida_at", null);
-        if (jErr && jErr.message?.includes("JWT")) { handleSessionExpired(); return; }
-        const jornadasData = (jornadas ?? []) as JornadaActiva[];
-        const jardineroIds = [...new Set(jornadasData.map(j => j.jardinero_id))];
-        if (jardineroIds.length > 0) {
-          const { data: perfiles } = await supabase.from("profiles").select("id, full_name").in("id", jardineroIds);
-          const map = new Map((perfiles ?? []).map((p: any) => [p.id, p]));
-          jornadasData.forEach(j => { (j as any).profiles = map.get(j.jardinero_id) ?? null; });
-        }
-        setJornadasActivas(jornadasData);
-      } else {
-        const { data, error: jErr } = await supabase
-          .from("jornadas")
-          .select("id, jardin_id, entrada_at, jardinero_id")
-          .eq("jardinero_id", user.id)
-          .is("salida_at", null);
-        if (jErr && jErr.message?.includes("JWT")) { handleSessionExpired(); return; }
-        setJornadasActivas((data ?? []) as JornadaActiva[]);
-      }
-    } catch (e) {
-      console.error("Fichaje fetchData error:", e);
-    } finally {
-      setLoading(false);
-    }
-  }, [user, isAdmin, isEncargado, esSupervisor, handleSessionExpired]);
-
-  useEffect(() => { fetchData(); }, [fetchData]);
-
+  // Periodic refresh + visibility refresh (preserves prior UX)
   useEffect(() => {
     if (!user) return;
-    const interval = setInterval(() => fetchData(false), 5 * 60 * 1000);
+    const interval = setInterval(() => refetch(), 5 * 60 * 1000);
     return () => clearInterval(interval);
-  }, [user, fetchData]);
+  }, [user, refetch]);
 
   useEffect(() => {
-    const onVisible = () => { if (document.visibilityState === "visible") fetchData(false); };
+    const onVisible = () => { if (document.visibilityState === "visible") refetch(); };
     document.addEventListener("visibilitychange", onVisible);
     return () => document.removeEventListener("visibilitychange", onVisible);
-  }, [fetchData]);
+  }, [refetch]);
+
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: ["jardines-y-jornadas"] });
 
   const miJornada = (jardinId: string) =>
     jornadasActivas.find(j => j.jardin_id === jardinId && j.jardinero_id === user?.id);
@@ -152,7 +105,7 @@ export default function Fichaje() {
         toast({ title: "Error al fichar entrada", description: error.message, variant: "destructive" });
       } else {
         toast({ title: "✅ Entrada fichada" });
-        await fetchData();
+        invalidate();
       }
     } catch {
       toast({ title: "Error inesperado", variant: "destructive" });
@@ -192,7 +145,7 @@ export default function Fichaje() {
         toast({ title: "Error al fichar salida", description: "Pulsa actualizar e intenta de nuevo.", variant: "destructive" });
       } else {
         toast({ title: "Salida fichada" });
-        await fetchData();
+        invalidate();
       }
     } catch {
       toast({ title: "Error inesperado", description: "Pulsa actualizar e intenta de nuevo.", variant: "destructive" });
@@ -263,7 +216,7 @@ export default function Fichaje() {
           <div className="h-px w-12 mt-2" style={{ backgroundColor: "hsl(155 45% 45%)" }} />
         </div>
         <button
-          onClick={() => fetchData()}
+          onClick={() => refetch()}
           className="p-2 rounded-sm transition-all active:scale-95"
           style={{ color: "hsl(155 45% 45%)" }}
           title="Actualizar"
@@ -349,7 +302,7 @@ export default function Fichaje() {
                               <div key={j.id} className="flex items-center gap-2">
                                 <div className="h-1.5 w-1.5 rounded-full animate-pulse flex-shrink-0" style={{ backgroundColor: "hsl(155 45% 45%)" }} />
                                 <span className="text-xs flex-1" style={{ color: "hsl(155 40% 38%)" }}>
-                                  {(j as any).profiles?.full_name ?? "Trabajador"} · desde {format(new Date(j.entrada_at), "HH:mm")}
+                                  {j.profiles?.full_name ?? "Trabajador"} · desde {format(new Date(j.entrada_at), "HH:mm")}
                                 </span>
                                 {isAdmin && (
                                   <button
