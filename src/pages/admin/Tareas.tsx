@@ -106,6 +106,7 @@ export default function Tareas() {
     setLoading(false);
   };
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { fetchData(); }, []);
 
   const filtered = tareas.filter(t => {

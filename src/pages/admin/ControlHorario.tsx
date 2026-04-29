@@ -83,6 +83,7 @@ export default function ControlHorario() {
     setLoading(false);
   };
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { fetchData(); }, [fechaDesde, fechaHasta, filtroTrabajador, filtroJardin, filtroEstado, isAdmin]);
 
   // O(n) summary using Map instead of O(n²) repeated filters

@@ -105,6 +105,7 @@ export default function TrabajosExtras() {
     setLoading(false);
   };
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { fetchData(); }, [isAdmin, fechaDesde, fechaHasta]);
 
   const setPreset = (preset: "semana" | "mes" | "anterior" | "todo") => {

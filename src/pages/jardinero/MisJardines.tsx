@@ -170,6 +170,7 @@ export default function MisJardines() {
     }
   };
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { fetchData(); }, [user?.id, isEncargado, isAdmin]);
 
   const jornadasDeJardin = (jardinId: string) => jornadasActivas.filter(j => j.jardin_id === jardinId);

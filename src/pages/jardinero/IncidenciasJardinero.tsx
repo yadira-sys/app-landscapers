@@ -82,6 +82,7 @@ export default function IncidenciasJardinero() {
     setLoading(false);
   };
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { fetchData(); }, [user]);
 
   const handleSubmit = async (e: React.FormEvent) => {

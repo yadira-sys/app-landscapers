@@ -113,7 +113,7 @@ export default function Fichaje() {
     } finally {
       setLoading(false);
     }
-  }, [user, isAdmin, isEncargado, esSupervisor, handleSessionExpired]);
+  }, [user, isAdmin, esSupervisor, handleSessionExpired]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 

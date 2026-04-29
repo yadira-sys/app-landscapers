@@ -83,7 +83,7 @@ export default function RegistroHoras() {
   };
 
   const fetchData = async () => {
-    let registrosQ = supabase
+    const registrosQ = supabase
       .from("jornadas")
       .select("id, jardin_id, jardinero_id, fecha, hora_inicio, hora_fin, total_horas, descripcion, estado, created_at, jardines(nombre), profiles!jornadas_jardinero_id_profiles_fkey(full_name)")
       .not("hora_inicio", "is", null)
@@ -103,6 +103,7 @@ export default function RegistroHoras() {
     setLoading(false);
   };
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { fetchData(); }, [isAdmin, fechaDesde, fechaHasta]);
 
   const cancelForm = () => {
