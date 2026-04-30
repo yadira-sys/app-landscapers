@@ -132,7 +132,7 @@ export default function RegistroHoras() {
       hora_fin: horaFin,
       total_horas: total,
       descripcion: descripcion.trim() || null,
-      estado: "pendiente" as any,
+      estado: "pendiente",
       entrada_at: new Date().toISOString(),
     }).select("id").single();
     if (error) {
@@ -149,7 +149,7 @@ export default function RegistroHoras() {
   const updateEstado = async (id: string, estado: EstadoRegistro) => {
     setUpdating(id);
     const registro = registros.find(r => r.id === id);
-    const { error } = await supabase.from("jornadas").update({ estado: estado as any }).eq("id", id);
+    const { error } = await supabase.from("jornadas").update({ estado }).eq("id", id);
     if (error) {
       toast({ title: "Error al actualizar", variant: "destructive" });
     } else {

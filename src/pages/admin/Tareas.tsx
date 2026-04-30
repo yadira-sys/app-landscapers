@@ -83,7 +83,7 @@ export default function Tareas() {
   const [fNotion, setFNotion] = useState("");
 
   const fetchData = async () => {
-    const queries: Promise<any>[] = [
+    const queries: PromiseLike<{ data: unknown }>[] = [
       isStaff
         ? supabase.from("tareas").select("*").order("created_at", { ascending: false })
         : supabase.from("tareas").select("*").eq("asignado_a", user!.id).order("created_at", { ascending: false }),
@@ -94,8 +94,8 @@ export default function Tareas() {
           if (!res.data) return res;
           const rolesRes = await supabase.from("user_roles").select("user_id, role");
           const rolesMap: Record<string, string> = {};
-          (rolesRes.data ?? []).forEach((r: any) => { rolesMap[r.user_id] = r.role; });
-          return { data: res.data.map((p: any) => ({ ...p, role: rolesMap[p.id] ?? null })) };
+          (rolesRes.data ?? []).forEach(r => { rolesMap[r.user_id] = r.role; });
+          return { data: res.data.map(p => ({ ...p, role: rolesMap[p.id] ?? null })) };
         })
       );
     }
@@ -138,7 +138,7 @@ export default function Tareas() {
       return;
     }
     setSaving(true);
-    const payload: Record<string, any> = {
+    const payload: Omit<Tarea, "id"> = {
       nombre: fNombre.trim(),
       estado: fEstado,
       prioridad: fPrioridad === "sin_prioridad" ? null : fPrioridad,

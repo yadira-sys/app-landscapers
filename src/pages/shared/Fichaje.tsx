@@ -95,8 +95,8 @@ export default function Fichaje() {
         const jardineroIds = [...new Set(jornadasData.map(j => j.jardinero_id))];
         if (jardineroIds.length > 0) {
           const { data: perfiles } = await supabase.from("profiles").select("id, full_name").in("id", jardineroIds);
-          const map = new Map((perfiles ?? []).map((p: any) => [p.id, p]));
-          jornadasData.forEach(j => { (j as any).profiles = map.get(j.jardinero_id) ?? null; });
+          const map = new Map((perfiles ?? []).map(p => [p.id, p]));
+          jornadasData.forEach(j => { j.profiles = map.get(j.jardinero_id) ?? null; });
         }
         setJornadasActivas(jornadasData);
       } else {
@@ -181,7 +181,7 @@ export default function Fichaje() {
           fecha: now.toISOString().split("T")[0],
           hora_inicio: jornada ? format(new Date(jornada.entrada_at), "HH:mm") : null,
           hora_fin: format(now, "HH:mm"),
-          estado: "pendiente" as any,
+          estado: "pendiente",
         })
         .eq("id", jornadaId)
         .select();
@@ -229,7 +229,7 @@ export default function Fichaje() {
       hora_fin: retroHoraFin,
       total_horas: total,
       descripcion: retroDescripcion.trim() || null,
-      estado: "pendiente" as any,
+      estado: "pendiente",
       entrada_at: new Date().toISOString(),
     });
     if (error) {
@@ -349,7 +349,7 @@ export default function Fichaje() {
                               <div key={j.id} className="flex items-center gap-2">
                                 <div className="h-1.5 w-1.5 rounded-full animate-pulse flex-shrink-0" style={{ backgroundColor: "hsl(155 45% 45%)" }} />
                                 <span className="text-xs flex-1" style={{ color: "hsl(155 40% 38%)" }}>
-                                  {(j as any).profiles?.full_name ?? "Trabajador"} · desde {format(new Date(j.entrada_at), "HH:mm")}
+                                  {j.profiles?.full_name ?? "Trabajador"} · desde {format(new Date(j.entrada_at), "HH:mm")}
                                 </span>
                                 {isAdmin && (
                                   <button

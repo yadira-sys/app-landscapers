@@ -177,7 +177,7 @@ export default function TrabajosExtras() {
       uploadedUrls.push(...results.filter((u): u is string => u !== null));
     }
 
-    const payload: Record<string, unknown> = {
+    const payload = {
       usuario_id: user!.id,
       jardin_id: jardinId,
       fecha,
@@ -191,7 +191,7 @@ export default function TrabajosExtras() {
       fotos_urls: uploadedUrls.length > 0 ? uploadedUrls : null,
     };
 
-    const { error } = await supabase.from("trabajos_extras").insert(payload as any).select("id").single();
+    const { error } = await supabase.from("trabajos_extras").insert(payload).select("id").single();
 
     if (error) {
       toast({ title: "Error al guardar", description: error.message, variant: "destructive" });
@@ -205,7 +205,7 @@ export default function TrabajosExtras() {
 
   const updateEstado = async (id: string, estado: EstadoRegistro) => {
     setUpdating(id);
-    const { error } = await supabase.from("trabajos_extras").update({ estado } as any).eq("id", id);
+    const { error } = await supabase.from("trabajos_extras").update({ estado }).eq("id", id);
     if (error) {
       toast({ title: "Error al actualizar", variant: "destructive" });
     } else {

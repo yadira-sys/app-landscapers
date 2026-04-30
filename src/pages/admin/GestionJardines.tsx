@@ -72,7 +72,7 @@ export default function GestionJardines() {
 
     if (jardinesRes.data) {
       const asignMap: Record<string, AsignacionJardinero[]> = {};
-      (asignacionesRes.data ?? []).forEach((a: any) => {
+      (asignacionesRes.data ?? []).forEach(a => {
         if (a.profiles) {
           if (!asignMap[a.jardin_id]) asignMap[a.jardin_id] = [];
           asignMap[a.jardin_id].push({

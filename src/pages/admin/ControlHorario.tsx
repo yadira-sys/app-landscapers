@@ -69,7 +69,7 @@ export default function ControlHorario() {
 
     if (filtroTrabajador !== "todos") q = q.eq("jardinero_id", filtroTrabajador);
     if (filtroJardin !== "todos") q = q.eq("jardin_id", filtroJardin);
-    if (filtroEstado !== "todos") q = q.eq("estado", filtroEstado as any);
+    if (filtroEstado !== "todos") q = q.eq("estado", filtroEstado as Jornada["estado"]);
 
     const [jornadasRes, trabajadoresRes, jardinesRes] = await Promise.all([
       q.limit(500),

@@ -114,7 +114,7 @@ export default function Presupuestos() {
       return;
     }
     setSaving(true);
-    const payload: Record<string, any> = {
+    const payload: { nombre: string; cliente: string | null; estado: string; fecha_envio: string | null; importe: number | null; notas: string | null; notion_url: string | null } = {
       nombre: fNombre.trim(),
       cliente: fCliente.trim() || null,
       estado: fEstado,

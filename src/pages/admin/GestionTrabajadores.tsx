@@ -75,8 +75,8 @@ export default function GestionTrabajadores() {
     ]);
     if (profilesRes.data) {
       const rolesMap: Record<string, string> = {};
-      (rolesRes.data ?? []).forEach((r: any) => { rolesMap[r.user_id] = r.role; });
-      const mapped = profilesRes.data.map((p: any) => ({
+      (rolesRes.data ?? []).forEach(r => { rolesMap[r.user_id] = r.role; });
+      const mapped = profilesRes.data.map(p => ({
         id: p.id,
         full_name: p.full_name,
         email: p.email,
@@ -126,8 +126,8 @@ export default function GestionTrabajadores() {
       setShowCreate(false);
       setNombre(""); setEmail(""); setPassword(""); setRol("jardinero"); setPinCreate("");
       await fetchTrabajadores();
-    } catch (e: any) {
-      toast({ title: "Error al crear", description: e.message, variant: "destructive" });
+    } catch (e: unknown) {
+      toast({ title: "Error al crear", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     } finally {
       setCreating(false);
     }
@@ -141,8 +141,8 @@ export default function GestionTrabajadores() {
       if (error || data?.error) throw new Error(data?.error || error?.message);
       toast({ title: `Rol de ${t.full_name} cambiado a ${roleLabels[newRole]}` });
       await fetchTrabajadores();
-    } catch (e: any) {
-      toast({ title: "Error al cambiar rol", description: e.message, variant: "destructive" });
+    } catch (e: unknown) {
+      toast({ title: "Error al cambiar rol", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     }
   };
 
@@ -167,8 +167,8 @@ export default function GestionTrabajadores() {
       toast({ title: "Datos actualizados" });
       setEditTarget(null);
       await fetchTrabajadores();
-    } catch (e: any) {
-      toast({ title: "Error al actualizar", description: e.message, variant: "destructive" });
+    } catch (e: unknown) {
+      toast({ title: "Error al actualizar", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     } finally {
       setEditing(false);
     }
@@ -185,8 +185,8 @@ export default function GestionTrabajadores() {
       toast({ title: "Trabajador eliminado" });
       setDeleteTarget(null);
       await fetchTrabajadores();
-    } catch (e: any) {
-      toast({ title: "Error al eliminar", description: e.message, variant: "destructive" });
+    } catch (e: unknown) {
+      toast({ title: "Error al eliminar", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     } finally {
       setDeleting(false);
     }
@@ -208,8 +208,8 @@ export default function GestionTrabajadores() {
       setPinTarget(null);
       setPinValue("");
       await fetchTrabajadores();
-    } catch (e: any) {
-      toast({ title: "Error al asignar PIN", description: e.message, variant: "destructive" });
+    } catch (e: unknown) {
+      toast({ title: "Error al asignar PIN", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     } finally {
       setSavingPin(false);
     }
@@ -224,8 +224,8 @@ export default function GestionTrabajadores() {
       if (error || data?.error) throw new Error(data?.error || error?.message);
       toast({ title: `PIN eliminado de ${t.full_name}` });
       await fetchTrabajadores();
-    } catch (e: any) {
-      toast({ title: "Error al eliminar PIN", description: e.message, variant: "destructive" });
+    } catch (e: unknown) {
+      toast({ title: "Error al eliminar PIN", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     } finally {
       setRemovingPin(null);
     }

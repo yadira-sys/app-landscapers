@@ -79,7 +79,7 @@ Deno.serve(async (req) => {
       if (profileUpsertError) throw profileUpsertError;
 
       // Set role + PIN in parallel
-      const promises: Promise<any>[] = [
+      const promises: PromiseLike<{ data: unknown }>[] = [
         adminClient.from("user_roles").insert({ user_id: newUser.user.id, role }),
       ];
       if (pin && /^\d{4,6}$/.test(pin)) {
