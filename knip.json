@@ -1,0 +1,22 @@
+{
+  "entry": ["src/App.tsx", "src/pages/**/*.tsx", "src/test/**/*.{ts,tsx}"],
+  "project": ["src/**/*.{ts,tsx}"],
+  "ignore": [
+    "src/components/ui/**",
+    "src/integrations/supabase/types.ts",
+    "src/hooks/use-toast.ts"
+  ],
+  "ignoreDependencies": [
+    "@radix-ui/*",
+    "cmdk",
+    "embla-carousel-react",
+    "input-otp",
+    "react-day-picker",
+    "react-hook-form",
+    "react-resizable-panels",
+    "vaul",
+    "zod",
+    "@hookform/resolvers",
+    "@tailwindcss/typography"
+  ]
+}

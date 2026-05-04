@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import vitaliaLogo from "@/assets/vitalia-logo.png";
+import landscapersLogo from "@/assets/landscapers-logo.png";
 
 type LoginMode = "email" | "pin";
 
@@ -37,8 +37,8 @@ export default function Login() {
   const handlePinLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    if (!/^\d{4,6}$/.test(pin)) {
-      setError("El PIN debe tener entre 4 y 6 dígitos");
+    if (!/^\d{6}$/.test(pin)) {
+      setError("El PIN debe tener 6 dígitos");
       return;
     }
     setSubmitting(true);
@@ -70,16 +70,16 @@ export default function Login() {
     >
       {/* Logo */}
       <div className="mb-8 text-center">
-        <img 
-          src={vitaliaLogo} 
-          alt="Vitalia Garden" 
-          className="h-28 w-28 mx-auto mb-4 rounded-full bg-white/95 p-2 shadow-lg"
+        <img
+          src={landscapersLogo}
+          alt="Landscapers"
+          className="h-16 w-auto mx-auto mb-4"
         />
         <h1
           className="font-display tracking-wide text-2xl font-medium"
           style={{ color: "hsl(0 0% 96%)" }}
         >
-          Vitalia Garden
+          Landscapers
         </h1>
         <div
           className="h-px w-24 mx-auto my-3"
@@ -149,7 +149,7 @@ export default function Login() {
                 }}
               />
               <p className="text-center text-xs mt-2" style={{ color: "hsl(0 0% 40%)" }}>
-                Introduce tu PIN de 4-6 dígitos
+                Introduce tu PIN de 6 dígitos
               </p>
             </div>
 
@@ -160,7 +160,7 @@ export default function Login() {
             <div className="pt-2">
               <button
                 type="submit"
-                disabled={submitting || pin.length < 4}
+                disabled={submitting || pin.length < 6}
                 className="w-full py-3 text-xs tracking-[0.2em] uppercase font-medium rounded-lg transition-all disabled:opacity-50"
                 style={{
                   backgroundColor: "hsl(142 45% 30%)",
@@ -189,7 +189,7 @@ export default function Login() {
               <Input
                 id="email"
                 type="email"
-                placeholder="tu@vitaliagarden.com"
+                placeholder="tu@landscapers.es"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -255,7 +255,7 @@ export default function Login() {
         className="mt-12 text-xs tracking-wider"
         style={{ color: "hsl(0 0% 30%)" }}
       >
-        © Vitalia Garden — Uso interno
+        © Landscapers — Uso interno
       </p>
     </div>
   );

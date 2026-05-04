@@ -376,7 +376,7 @@ export default function GestionCompras() {
             </div>
           )}
 
-          <ResumenGastos compras={compras as any} />
+          <ResumenGastos compras={compras} />
         </>
       )}
 

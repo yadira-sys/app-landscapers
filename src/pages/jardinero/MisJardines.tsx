@@ -19,6 +19,11 @@ interface JornadaActiva {
   profiles?: { full_name: string } | null;
 }
 
+interface Companero {
+  nombre: string;
+  entrada_at: string;
+}
+
 interface Asignacion {
   jardin_id: string;
   jardinero_id: string;
@@ -46,7 +51,7 @@ function useNotificaciones(hasJornada: boolean, isWorker: boolean) {
     if (localStorage.getItem(clave)) return;
 
     localStorage.setItem(clave, "1");
-    new Notification("Vitalia Garden", {
+    new Notification("Landscapers", {
       body: "¡No olvides fichar tu entrada de hoy!",
       icon: "/pwa-192x192.png",
     });
@@ -69,6 +74,7 @@ export default function MisJardines() {
   const [asignaciones, setAsignaciones] = useState<Asignacion[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [companerosMap, setCompanerosMap] = useState<Map<string, Companero[]>>(new Map());
 
   const esVisionGlobal = isAdmin || isEncargado;
   const miJornadaActiva = jornadasActivas.find(j => j.jardinero_id === user?.id);
@@ -90,7 +96,7 @@ export default function MisJardines() {
           .select("jardin_id, jardines(id, nombre, direccion)")
           .eq("jardinero_id", user.id)
           .eq("activo", true);
-        jards = ((data ?? []) as any[]).map(a => a.jardines).filter(Boolean) as Jardin[];
+        jards = (data ?? []).map(a => a.jardines).filter(Boolean) as Jardin[];
       }
       setJardines(jards);
 
@@ -103,8 +109,8 @@ export default function MisJardines() {
         const ids = [...new Set(jornadasData.map(j => j.jardinero_id))];
         if (ids.length > 0) {
           const { data: perfiles } = await supabase.from("profiles").select("id, full_name").in("id", ids);
-          const map = new Map((perfiles ?? []).map((p: any) => [p.id, p]));
-          jornadasData.forEach(j => { (j as any).profiles = map.get(j.jardinero_id) ?? null; });
+          const map = new Map((perfiles ?? []).map(p => [p.id, p]));
+          jornadasData.forEach(j => { j.profiles = map.get(j.jardinero_id) ?? null; });
         }
         setJornadasActivas(jornadasData);
 
@@ -113,7 +119,7 @@ export default function MisJardines() {
           .select("jardin_id, jardinero_id, profiles!asignaciones_jardinero_id_profiles_fkey(full_name)")
           .eq("activo", true);
         setAsignaciones(
-          ((asigData ?? []) as any[]).map(a => ({
+          (asigData ?? []).map(a => ({
             jardin_id: a.jardin_id,
             jardinero_id: a.jardinero_id,
             jardinero_nombre: a.profiles?.full_name ?? "—",
@@ -125,7 +131,37 @@ export default function MisJardines() {
           .select("id, jardin_id, entrada_at, jardinero_id")
           .eq("jardinero_id", user.id)
           .is("salida_at", null);
-        setJornadasActivas((data ?? []) as JornadaActiva[]);
+        const propias = (data ?? []) as JornadaActiva[];
+        setJornadasActivas(propias);
+
+        // Fetch companions working today in same gardens
+        const jardinIdsActivos = propias.map(j => j.jardin_id);
+        if (jardinIdsActivos.length > 0) {
+          const hoy = new Date().toISOString().split("T")[0];
+          const { data: otras } = await supabase
+            .from("jornadas")
+            .select("jardin_id, jardinero_id, entrada_at")
+            .in("jardin_id", jardinIdsActivos)
+            .neq("jardinero_id", user.id)
+            .is("salida_at", null)
+            .gte("entrada_at", `${hoy}T00:00:00`);
+          if (otras && otras.length > 0) {
+            const ids = [...new Set(otras.map(o => o.jardinero_id))];
+            const { data: perfs } = await supabase.from("profiles").select("id, full_name").in("id", ids);
+            const perfMap = new Map((perfs ?? []).map(p => [p.id, p.full_name]));
+            const map = new Map<string, Companero[]>();
+            for (const o of otras) {
+              const list = map.get(o.jardin_id) ?? [];
+              list.push({ nombre: perfMap.get(o.jardinero_id) ?? "Compañero", entrada_at: o.entrada_at });
+              map.set(o.jardin_id, list);
+            }
+            setCompanerosMap(map);
+          } else {
+            setCompanerosMap(new Map());
+          }
+        } else {
+          setCompanerosMap(new Map());
+        }
       }
     } catch (e) {
       console.error("MisJardines error:", e);
@@ -134,6 +170,7 @@ export default function MisJardines() {
     }
   };
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { fetchData(); }, [user?.id, isEncargado, isAdmin]);
 
   const jornadasDeJardin = (jardinId: string) => jornadasActivas.filter(j => j.jardin_id === jardinId);
@@ -167,7 +204,7 @@ export default function MisJardines() {
       fecha: now.toISOString().split("T")[0],
       hora_inicio: jornada ? format(new Date(jornada.entrada_at), "HH:mm") : null,
       hora_fin: format(now, "HH:mm"),
-      estado: "pendiente" as any,
+      estado: "pendiente",
     }).eq("id", jornadaId);
     if (error) toast({ title: "Error al registrar salida", variant: "destructive" });
     else { toast({ title: "✅ Salida registrada" }); await fetchData(); }
@@ -283,11 +320,21 @@ export default function MisJardines() {
 
                 {/* Estado jornada propia (jardinero) */}
                 {!esVisionGlobal && miJorn && (
-                  <div className="flex items-center gap-1.5 mt-3 pt-3" style={{ borderTop: "1px solid hsl(30 10% 93%)" }}>
-                    <div className="h-2 w-2 rounded-full animate-pulse shrink-0" style={{ backgroundColor: "hsl(155 45% 45%)" }} />
-                    <span className="text-xs" style={{ color: "hsl(155 40% 38%)" }}>
-                      En jornada desde {format(new Date(miJorn.entrada_at), "HH:mm")}
-                    </span>
+                  <div className="mt-3 pt-3 space-y-2" style={{ borderTop: "1px solid hsl(30 10% 93%)" }}>
+                    <div className="flex items-center gap-1.5">
+                      <div className="h-2 w-2 rounded-full animate-pulse shrink-0" style={{ backgroundColor: "hsl(155 45% 45%)" }} />
+                      <span className="text-xs" style={{ color: "hsl(155 40% 38%)" }}>
+                        En jornada desde {format(new Date(miJorn.entrada_at), "HH:mm")}
+                      </span>
+                    </div>
+                    {(companerosMap.get(jardin.id) ?? []).map((c, i) => (
+                      <div key={i} className="flex items-center gap-1.5 pl-0.5">
+                        <div className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: "hsl(38 90% 55%)" }} />
+                        <span className="text-xs" style={{ color: "hsl(38 60% 40%)" }}>
+                          {c.nombre} trabajando aquí desde {format(new Date(c.entrada_at), "HH:mm")}
+                        </span>
+                      </div>
+                    ))}
                   </div>
                 )}
 
@@ -306,7 +353,7 @@ export default function MisJardines() {
                       <div key={j.id} className="flex items-center gap-2">
                         <div className="h-1.5 w-1.5 rounded-full animate-pulse shrink-0" style={{ backgroundColor: "hsl(155 45% 45%)" }} />
                         <span className="text-xs flex-1" style={{ color: "hsl(155 40% 38%)" }}>
-                          {(j as any).profiles?.full_name ?? "Jardinero"} · desde {format(new Date(j.entrada_at), "HH:mm")}
+                          {j.profiles?.full_name ?? "Jardinero"} · desde {format(new Date(j.entrada_at), "HH:mm")}
                         </span>
                         <button
                           disabled={!!actionLoading}

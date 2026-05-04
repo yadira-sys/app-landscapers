@@ -36,20 +36,20 @@ async function fetchDashboard() {
   ]);
 
   const jornadas = jornadasRes.data ?? [];
-  const horasSemanales = jornadas.reduce((sum: number, j: any) => sum + (j.total_horas ?? 0), 0);
+  const horasSemanales = jornadas.reduce((sum: number, j) => sum + (j.total_horas ?? 0), 0);
 
   const jardines = jardRes.data ?? [];
   const compras = comprasRes.data ?? [];
   const extras = extrasRes.data ?? [];
 
   const horasMap: Record<string, number> = {};
-  jornadas.forEach((j: any) => { horasMap[j.jardin_id] = (horasMap[j.jardin_id] ?? 0) + (j.total_horas ?? 0); });
+  jornadas.forEach(j => { horasMap[j.jardin_id] = (horasMap[j.jardin_id] ?? 0) + (j.total_horas ?? 0); });
 
   const gastosMap: Record<string, number> = {};
-  compras.forEach((c: any) => { gastosMap[c.jardin_id] = (gastosMap[c.jardin_id] ?? 0) + (c.importe ?? 0); });
+  compras.forEach(c => { gastosMap[c.jardin_id] = (gastosMap[c.jardin_id] ?? 0) + (c.importe ?? 0); });
 
   const extrasMap: Record<string, number> = {};
-  extras.forEach((e: any) => { extrasMap[e.jardin_id] = (extrasMap[e.jardin_id] ?? 0) + 1; });
+  extras.forEach(e => { extrasMap[e.jardin_id] = (extrasMap[e.jardin_id] ?? 0) + 1; });
 
   const stats: Stats = {
     horasPendientes: horasPend.count ?? 0,
@@ -60,7 +60,7 @@ async function fetchDashboard() {
     horasSemanales: Math.round(horasSemanales * 10) / 10,
   };
 
-  const resumenJardines: JardinResumen[] = jardines.map((j: any) => ({
+  const resumenJardines: JardinResumen[] = jardines.map(j => ({
     id: j.id,
     nombre: j.nombre,
     totalHoras: Math.round((horasMap[j.id] ?? 0) * 10) / 10,

@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Wrench, Plus, Loader2, X, Download, Camera, Car } from "lucide-react";
-import { format, startOfMonth, endOfMonth, subMonths } from "date-fns";
+import { format, startOfMonth, endOfMonth, subMonths, startOfWeek, endOfWeek } from "date-fns";
 import { es } from "date-fns/locale";
 import { useToast } from "@/hooks/use-toast";
 import { exportCsv } from "@/lib/exportCsv";
@@ -21,7 +21,9 @@ interface Extra {
   horas: number | null;
   importe: number | null;
   foto_url: string | null;
+  fotos_urls: string[] | null;
   con_desplazamiento: boolean;
+  km_desplazamiento: number | null;
   estado: EstadoRegistro;
   notas_revision: string | null;
   created_at: string;
@@ -44,6 +46,14 @@ const estadoConfig: Record<EstadoRegistro, { label: string; color: string; bg: s
   rechazado: { label: "Rechazado", color: "hsl(0 72% 51%)",   bg: "hsl(0 72% 51% / 0.12)" },
 };
 
+/** Parse stored photos — handles both legacy single URL and new JSON array */
+function parsePhotos(extra: Extra): string[] {
+  const urls: string[] = [];
+  if (extra.fotos_urls && extra.fotos_urls.length > 0) urls.push(...extra.fotos_urls);
+  else if (extra.foto_url) urls.push(extra.foto_url);
+  return urls;
+}
+
 export default function TrabajosExtras() {
   const { user, isAdmin, isEncargado, profile } = useAuth();
   const { toast } = useToast();
@@ -63,7 +73,7 @@ export default function TrabajosExtras() {
   const [fechaHasta, setFechaHasta] = useState(endOfMonth(new Date()).toISOString().split("T")[0]);
   const [filtroEstado, setFiltroEstado] = useState("todos");
 
-  // Form
+  // Form state
   const [jardinId, setJardinId] = useState("");
   const [fecha, setFecha] = useState(new Date().toISOString().split("T")[0]);
   const [tipo, setTipo] = useState<TipoExtra>("otro");
@@ -71,8 +81,9 @@ export default function TrabajosExtras() {
   const [horas, setHoras] = useState("");
   const [importe, setImporte] = useState("");
   const [conDesplazamiento, setConDesplazamiento] = useState(false);
-  const [fotoFile, setFotoFile] = useState<File | null>(null);
-  const [fotoPreview, setFotoPreview] = useState<string | null>(null);
+  const [kmDesplazamiento, setKmDesplazamiento] = useState("");
+  const [fotoFiles, setFotoFiles] = useState<File[]>([]);
+  const [fotoPreviews, setFotoPreviews] = useState<string[]>([]);
 
   const fetchData = async () => {
     const [jardinesRes, extrasRes] = await Promise.all([
@@ -83,7 +94,7 @@ export default function TrabajosExtras() {
       })(),
       supabase
         .from("trabajos_extras")
-        .select("id, usuario_id, jardin_id, fecha, tipo, descripcion, horas, importe, foto_url, con_desplazamiento, estado, notas_revision, created_at, jardines(nombre), profiles!trabajos_extras_usuario_id_fkey(full_name)")
+        .select("id, usuario_id, jardin_id, fecha, tipo, descripcion, horas, importe, foto_url, fotos_urls, con_desplazamiento, km_desplazamiento, estado, notas_revision, created_at, jardines(nombre), profiles!trabajos_extras_usuario_id_fkey(full_name)")
         .gte("fecha", fechaDesde)
         .lte("fecha", fechaHasta)
         .order("fecha", { ascending: false })
@@ -94,10 +105,14 @@ export default function TrabajosExtras() {
     setLoading(false);
   };
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { fetchData(); }, [isAdmin, fechaDesde, fechaHasta]);
 
-  const setPreset = (preset: "mes" | "anterior" | "todo") => {
-    if (preset === "mes") {
+  const setPreset = (preset: "semana" | "mes" | "anterior" | "todo") => {
+    if (preset === "semana") {
+      setFechaDesde(startOfWeek(new Date(), { weekStartsOn: 1 }).toISOString().split("T")[0]);
+      setFechaHasta(endOfWeek(new Date(), { weekStartsOn: 1 }).toISOString().split("T")[0]);
+    } else if (preset === "mes") {
       setFechaDesde(startOfMonth(new Date()).toISOString().split("T")[0]);
       setFechaHasta(endOfMonth(new Date()).toISOString().split("T")[0]);
     } else if (preset === "anterior") {
@@ -111,19 +126,40 @@ export default function TrabajosExtras() {
   };
 
   const handleFotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setFotoFile(file);
-    const reader = new FileReader();
-    reader.onload = ev => setFotoPreview(ev.target?.result as string);
-    reader.readAsDataURL(file);
+    const files = Array.from(e.target.files ?? []);
+    if (!files.length) return;
+    const remaining = 5 - fotoFiles.length;
+    const toAdd = files.slice(0, remaining);
+    setFotoFiles(prev => [...prev, ...toAdd]);
+    toAdd.forEach(file => {
+      const reader = new FileReader();
+      reader.onload = ev => setFotoPreviews(prev => [...prev, ev.target?.result as string]);
+      reader.readAsDataURL(file);
+    });
+    // Reset input so the same file can be re-selected
+    e.target.value = "";
+  };
+
+  const removePhoto = (idx: number) => {
+    setFotoFiles(prev => prev.filter((_, i) => i !== idx));
+    setFotoPreviews(prev => prev.filter((_, i) => i !== idx));
   };
 
   const cancelForm = () => {
     setShowForm(false);
     setJardinId(""); setFecha(new Date().toISOString().split("T")[0]);
     setTipo("otro"); setDescripcion(""); setHoras(""); setImporte("");
-    setConDesplazamiento(false); setFotoFile(null); setFotoPreview(null);
+    setConDesplazamiento(false); setKmDesplazamiento("");
+    setFotoFiles([]); setFotoPreviews([]);
+  };
+
+  const uploadPhoto = async (file: File): Promise<string | null> => {
+    const ext = file.name.split(".").pop() ?? "jpg";
+    const path = `extras/${user!.id}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+    const { error } = await supabase.storage.from("extras-fotos").upload(path, file, { upsert: true });
+    if (error) return null;
+    const { data } = supabase.storage.from("extras-fotos").getPublicUrl(path);
+    return data.publicUrl;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -134,34 +170,28 @@ export default function TrabajosExtras() {
     }
     setSubmitting(true);
 
-    let fotoUrl: string | null = null;
-    if (fotoFile) {
-      const ext = fotoFile.name.split(".").pop() ?? "jpg";
-      const path = `extras/${user!.id}/${Date.now()}.${ext}`;
-      const { error: uploadError } = await supabase.storage
-        .from("extras-fotos")
-        .upload(path, fotoFile, { upsert: true });
-      if (!uploadError) {
-        const { data: urlData } = supabase.storage.from("extras-fotos").getPublicUrl(path);
-        fotoUrl = urlData.publicUrl;
-      }
+    // Upload all photos in parallel
+    const uploadedUrls: string[] = [];
+    if (fotoFiles.length > 0) {
+      const results = await Promise.all(fotoFiles.map(uploadPhoto));
+      uploadedUrls.push(...results.filter((u): u is string => u !== null));
     }
 
-    const { data: insertedData, error } = await supabase
-      .from("trabajos_extras")
-      .insert({
-        usuario_id: user!.id,
-        jardin_id: jardinId,
-        fecha,
-        tipo,
-        descripcion: descripcion.trim(),
-        horas: horas ? parseFloat(horas) : null,
-        importe: importe ? parseFloat(importe) : null,
-        con_desplazamiento: conDesplazamiento,
-        foto_url: fotoUrl,
-      } as any)
-      .select("id")
-      .single();
+    const payload = {
+      usuario_id: user!.id,
+      jardin_id: jardinId,
+      fecha,
+      tipo,
+      descripcion: descripcion.trim(),
+      horas: horas ? parseFloat(horas) : null,
+      importe: importe ? parseFloat(importe) : null,
+      con_desplazamiento: conDesplazamiento,
+      km_desplazamiento: conDesplazamiento && kmDesplazamiento ? parseFloat(kmDesplazamiento) : null,
+      foto_url: uploadedUrls[0] ?? null,
+      fotos_urls: uploadedUrls.length > 0 ? uploadedUrls : null,
+    };
+
+    const { error } = await supabase.from("trabajos_extras").insert(payload).select("id").single();
 
     if (error) {
       toast({ title: "Error al guardar", description: error.message, variant: "destructive" });
@@ -175,7 +205,7 @@ export default function TrabajosExtras() {
 
   const updateEstado = async (id: string, estado: EstadoRegistro) => {
     setUpdating(id);
-    const { error } = await supabase.from("trabajos_extras").update({ estado } as any).eq("id", id);
+    const { error } = await supabase.from("trabajos_extras").update({ estado }).eq("id", id);
     if (error) {
       toast({ title: "Error al actualizar", variant: "destructive" });
     } else {
@@ -257,7 +287,7 @@ export default function TrabajosExtras() {
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs uppercase tracking-widest font-medium" style={{ color: "hsl(30 5% 48%)" }}>Horas</label>
+                <label className="text-xs uppercase tracking-widest font-medium" style={{ color: "hsl(30 5% 48%)" }}>Horas trabajadas</label>
                 <input
                   type="number"
                   step="0.5"
@@ -271,7 +301,7 @@ export default function TrabajosExtras() {
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs uppercase tracking-widest font-medium" style={{ color: "hsl(30 5% 48%)" }}>Importe (€)</label>
+              <label className="text-xs uppercase tracking-widest font-medium" style={{ color: "hsl(30 5% 48%)" }}>Importe total (€)</label>
               <input
                 type="number"
                 step="0.01"
@@ -295,57 +325,97 @@ export default function TrabajosExtras() {
             </div>
 
             {/* Desplazamiento */}
-            <div
-              className="flex items-center justify-between py-2.5 px-3 rounded-sm"
-              style={{ backgroundColor: "hsl(30 10% 97%)", border: "1px solid hsl(30 10% 90%)" }}
-            >
-              <div className="flex items-center gap-2">
-                <Car className="h-4 w-4" style={{ color: conDesplazamiento ? "hsl(155 45% 40%)" : "hsl(30 5% 55%)" }} />
-                <span className="text-sm" style={{ color: "hsl(30 5% 35%)" }}>Incluye desplazamiento</span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setConDesplazamiento(!conDesplazamiento)}
-                className="relative inline-flex h-5 w-9 items-center rounded-full transition-colors"
-                style={{ backgroundColor: conDesplazamiento ? "hsl(155 45% 40%)" : "hsl(30 10% 80%)" }}
+            <div className="space-y-2">
+              <div
+                className="flex items-center justify-between py-2.5 px-3 rounded-sm"
+                style={{ backgroundColor: "hsl(30 10% 97%)", border: "1px solid hsl(30 10% 90%)" }}
               >
-                <span
-                  className="inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform"
-                  style={{ transform: conDesplazamiento ? "translateX(16px)" : "translateX(2px)" }}
-                />
-              </button>
+                <div className="flex items-center gap-2">
+                  <Car className="h-4 w-4" style={{ color: conDesplazamiento ? "hsl(155 45% 40%)" : "hsl(30 5% 55%)" }} />
+                  <span className="text-sm" style={{ color: "hsl(30 5% 35%)" }}>Incluye desplazamiento</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { setConDesplazamiento(!conDesplazamiento); if (conDesplazamiento) setKmDesplazamiento(""); }}
+                  className="relative inline-flex h-5 w-9 items-center rounded-full transition-colors"
+                  style={{ backgroundColor: conDesplazamiento ? "hsl(155 45% 40%)" : "hsl(30 10% 80%)" }}
+                >
+                  <span
+                    className="inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform"
+                    style={{ transform: conDesplazamiento ? "translateX(16px)" : "translateX(2px)" }}
+                  />
+                </button>
+              </div>
+              {conDesplazamiento && (
+                <div className="space-y-1.5">
+                  <label className="text-xs uppercase tracking-widest font-medium" style={{ color: "hsl(30 5% 48%)" }}>Km aproximados</label>
+                  <input
+                    type="number"
+                    step="1"
+                    min="0"
+                    value={kmDesplazamiento}
+                    onChange={e => setKmDesplazamiento(e.target.value)}
+                    placeholder="Ej: 25"
+                    className="w-full rounded-sm border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  />
+                </div>
+              )}
             </div>
 
-            {/* Foto */}
+            {/* Fotos / Facturas (hasta 5) */}
             <div className="space-y-1.5">
-              <label className="text-xs uppercase tracking-widest font-medium" style={{ color: "hsl(30 5% 48%)" }}>Foto del trabajo</label>
+              <div className="flex items-center justify-between">
+                <label className="text-xs uppercase tracking-widest font-medium" style={{ color: "hsl(30 5% 48%)" }}>
+                  Fotos / Facturas
+                </label>
+                <span className="text-[10px]" style={{ color: "hsl(30 5% 55%)" }}>{fotoFiles.length}/5</span>
+              </div>
               <input
                 ref={fileInputRef}
                 type="file"
                 accept="image/*"
                 capture="environment"
+                multiple
                 onChange={handleFotoChange}
                 className="hidden"
               />
-              {fotoPreview ? (
-                <div className="relative">
-                  <img src={fotoPreview} alt="preview" className="w-full h-32 object-cover rounded-sm border" />
-                  <button
-                    type="button"
-                    onClick={() => { setFotoFile(null); setFotoPreview(null); }}
-                    className="absolute top-1 right-1 bg-black/50 rounded-full p-0.5"
-                  >
-                    <X className="h-3 w-3 text-white" />
-                  </button>
+
+              {/* Preview grid */}
+              {fotoPreviews.length > 0 && (
+                <div className="grid grid-cols-3 gap-1.5">
+                  {fotoPreviews.map((preview, idx) => (
+                    <div key={idx} className="relative aspect-square">
+                      <img src={preview} alt={`foto ${idx + 1}`} className="w-full h-full object-cover rounded-sm border" />
+                      <button
+                        type="button"
+                        onClick={() => removePhoto(idx)}
+                        className="absolute top-0.5 right-0.5 bg-black/60 rounded-full p-0.5"
+                      >
+                        <X className="h-3 w-3 text-white" />
+                      </button>
+                    </div>
+                  ))}
+                  {fotoFiles.length < 5 && (
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="aspect-square rounded-sm border border-dashed flex items-center justify-center transition-colors"
+                      style={{ borderColor: "hsl(30 10% 80%)", color: "hsl(30 5% 48%)" }}
+                    >
+                      <Camera className="h-5 w-5" />
+                    </button>
+                  )}
                 </div>
-              ) : (
+              )}
+
+              {fotoPreviews.length === 0 && (
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
                   className="w-full py-3 rounded-sm border border-dashed flex items-center justify-center gap-2 text-xs transition-colors"
                   style={{ borderColor: "hsl(30 10% 80%)", color: "hsl(30 5% 48%)" }}
                 >
-                  <Camera className="h-4 w-4" /> Añadir foto
+                  <Camera className="h-4 w-4" /> Añadir foto o factura
                 </button>
               )}
             </div>
@@ -367,6 +437,7 @@ export default function TrabajosExtras() {
         <div className="space-y-2">
           <div className="flex gap-1.5 flex-wrap">
             {[
+              { label: "Esta semana", action: () => setPreset("semana") },
               { label: "Este mes", action: () => setPreset("mes") },
               { label: "Mes anterior", action: () => setPreset("anterior") },
               { label: "Todo", action: () => setPreset("todo") },
@@ -408,12 +479,13 @@ export default function TrabajosExtras() {
             {extrasFiltrados.length > 0 && (
               <button
                 onClick={() => {
-                  const headers = ["Fecha", "Jardín", "Trabajador", "Tipo", "Descripción", "Horas", "Importe (€)", "Desplazamiento", "Estado"];
+                  const headers = ["Fecha", "Jardín", "Trabajador", "Tipo", "Descripción", "Horas", "Importe (€)", "Desplazamiento", "Km", "Estado"];
                   const rows = extrasFiltrados.map(e => [
                     e.fecha, e.jardines?.nombre ?? "", e.profiles?.full_name ?? "",
                     tipoLabels[e.tipo], e.descripcion,
                     e.horas?.toString() ?? "", e.importe?.toString() ?? "",
                     e.con_desplazamiento ? "Sí" : "No",
+                    e.km_desplazamiento?.toString() ?? "",
                     estadoConfig[e.estado].label,
                   ]);
                   exportCsv(`extras_${new Date().toISOString().split("T")[0]}.csv`, headers, rows);
@@ -442,6 +514,7 @@ export default function TrabajosExtras() {
         <div className="space-y-3">
           {extrasFiltrados.map(ex => {
             const cfg = estadoConfig[ex.estado];
+            const fotos = parsePhotos(ex);
             return (
               <div
                 key={ex.id}
@@ -478,20 +551,27 @@ export default function TrabajosExtras() {
                       className="flex items-center gap-0.5 text-[10px] font-medium uppercase tracking-wider px-2 py-0.5 rounded-sm"
                       style={{ backgroundColor: "hsl(210 60% 40% / 0.1)", color: "hsl(210 60% 35%)" }}
                     >
-                      <Car className="h-3 w-3" /> Desplazamiento
+                      <Car className="h-3 w-3" />
+                      {ex.km_desplazamiento ? `${ex.km_desplazamiento} km` : "Desplazamiento"}
                     </span>
                   )}
                 </div>
 
                 <p className="text-sm" style={{ color: "hsl(30 5% 35%)" }}>{ex.descripcion}</p>
 
-                {ex.foto_url && (
-                  <img
-                    src={ex.foto_url}
-                    alt="foto trabajo"
-                    className="w-full h-28 object-cover rounded-sm cursor-pointer"
-                    onClick={() => setLightboxUrl(ex.foto_url)}
-                  />
+                {/* Photos / Facturas gallery */}
+                {fotos.length > 0 && (
+                  <div className={fotos.length === 1 ? "" : "grid grid-cols-3 gap-1.5"}>
+                    {fotos.map((url, idx) => (
+                      <img
+                        key={idx}
+                        src={url}
+                        alt={`foto ${idx + 1}`}
+                        className={`object-cover rounded-sm cursor-pointer border ${fotos.length === 1 ? "w-full h-28" : "w-full aspect-square"}`}
+                        onClick={() => setLightboxUrl(url)}
+                      />
+                    ))}
+                  </div>
                 )}
 
                 {ex.notas_revision && (

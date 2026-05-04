@@ -75,8 +75,8 @@ export default function GestionTrabajadores() {
     ]);
     if (profilesRes.data) {
       const rolesMap: Record<string, string> = {};
-      (rolesRes.data ?? []).forEach((r: any) => { rolesMap[r.user_id] = r.role; });
-      const mapped = profilesRes.data.map((p: any) => ({
+      (rolesRes.data ?? []).forEach(r => { rolesMap[r.user_id] = r.role; });
+      const mapped = profilesRes.data.map(p => ({
         id: p.id,
         full_name: p.full_name,
         email: p.email,
@@ -101,12 +101,12 @@ export default function GestionTrabajadores() {
       return;
     }
     // For jardineros, PIN is required (it's their login method)
-    if (rol === "jardinero" && !/^\d{4,6}$/.test(pinCreate)) {
-      toast({ title: "El PIN es obligatorio para jardineros (4-6 dígitos)", variant: "destructive" });
+    if (rol === "jardinero" && !/^\d{6}$/.test(pinCreate)) {
+      toast({ title: "El PIN es obligatorio para jardineros (6 dígitos)", variant: "destructive" });
       return;
     }
-    if (pinCreate && !/^\d{4,6}$/.test(pinCreate)) {
-      toast({ title: "El PIN debe tener entre 4 y 6 dígitos", variant: "destructive" });
+    if (pinCreate && !/^\d{6}$/.test(pinCreate)) {
+      toast({ title: "El PIN debe tener 6 dígitos", variant: "destructive" });
       return;
     }
     setCreating(true);
@@ -126,8 +126,8 @@ export default function GestionTrabajadores() {
       setShowCreate(false);
       setNombre(""); setEmail(""); setPassword(""); setRol("jardinero"); setPinCreate("");
       await fetchTrabajadores();
-    } catch (e: any) {
-      toast({ title: "Error al crear", description: e.message, variant: "destructive" });
+    } catch (e: unknown) {
+      toast({ title: "Error al crear", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     } finally {
       setCreating(false);
     }
@@ -141,8 +141,8 @@ export default function GestionTrabajadores() {
       if (error || data?.error) throw new Error(data?.error || error?.message);
       toast({ title: `Rol de ${t.full_name} cambiado a ${roleLabels[newRole]}` });
       await fetchTrabajadores();
-    } catch (e: any) {
-      toast({ title: "Error al cambiar rol", description: e.message, variant: "destructive" });
+    } catch (e: unknown) {
+      toast({ title: "Error al cambiar rol", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     }
   };
 
@@ -167,8 +167,8 @@ export default function GestionTrabajadores() {
       toast({ title: "Datos actualizados" });
       setEditTarget(null);
       await fetchTrabajadores();
-    } catch (e: any) {
-      toast({ title: "Error al actualizar", description: e.message, variant: "destructive" });
+    } catch (e: unknown) {
+      toast({ title: "Error al actualizar", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     } finally {
       setEditing(false);
     }
@@ -185,8 +185,8 @@ export default function GestionTrabajadores() {
       toast({ title: "Trabajador eliminado" });
       setDeleteTarget(null);
       await fetchTrabajadores();
-    } catch (e: any) {
-      toast({ title: "Error al eliminar", description: e.message, variant: "destructive" });
+    } catch (e: unknown) {
+      toast({ title: "Error al eliminar", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     } finally {
       setDeleting(false);
     }
@@ -194,8 +194,8 @@ export default function GestionTrabajadores() {
 
   const handleSavePin = async () => {
     if (!pinTarget) return;
-    if (!/^\d{4,6}$/.test(pinValue)) {
-      toast({ title: "El PIN debe tener entre 4 y 6 dígitos", variant: "destructive" });
+    if (!/^\d{6}$/.test(pinValue)) {
+      toast({ title: "El PIN debe tener 6 dígitos", variant: "destructive" });
       return;
     }
     setSavingPin(true);
@@ -208,8 +208,8 @@ export default function GestionTrabajadores() {
       setPinTarget(null);
       setPinValue("");
       await fetchTrabajadores();
-    } catch (e: any) {
-      toast({ title: "Error al asignar PIN", description: e.message, variant: "destructive" });
+    } catch (e: unknown) {
+      toast({ title: "Error al asignar PIN", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     } finally {
       setSavingPin(false);
     }
@@ -224,8 +224,8 @@ export default function GestionTrabajadores() {
       if (error || data?.error) throw new Error(data?.error || error?.message);
       toast({ title: `PIN eliminado de ${t.full_name}` });
       await fetchTrabajadores();
-    } catch (e: any) {
-      toast({ title: "Error al eliminar PIN", description: e.message, variant: "destructive" });
+    } catch (e: unknown) {
+      toast({ title: "Error al eliminar PIN", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     } finally {
       setRemovingPin(null);
     }
@@ -273,7 +273,7 @@ export default function GestionTrabajadores() {
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
                         <p className="font-semibold text-sm">{t.full_name}</p>
-                        {!t.email.includes("@interno.vitaliagarden.local") && (
+                        {!t.email.includes("@interno.landscapers.local") && (
                           <p className="text-xs text-muted-foreground truncate">{t.email}</p>
                         )}
                       </div>
@@ -385,7 +385,7 @@ export default function GestionTrabajadores() {
                   maxLength={6}
                   value={pinCreate}
                   onChange={(e) => setPinCreate(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                  placeholder="4-6 dígitos"
+                  placeholder="6 dígitos"
                   className="font-mono text-xl tracking-[0.4em] text-center h-12"
                 />
                 <p className="text-xs text-muted-foreground">El jardinero usará este PIN para entrar. No necesita email.</p>
@@ -410,7 +410,7 @@ export default function GestionTrabajadores() {
                     maxLength={6}
                     value={pinCreate}
                     onChange={(e) => setPinCreate(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                    placeholder="4-6 dígitos"
+                    placeholder="6 dígitos"
                     className="font-mono tracking-widest"
                   />
                 </div>
@@ -488,7 +488,7 @@ export default function GestionTrabajadores() {
             <DialogDescription>
               {pinTarget?.pin
                 ? "Este trabajador ya tiene un PIN asignado. Puedes cambiarlo o eliminarlo."
-                : "Asigna un PIN numérico de 4-6 dígitos para acceso rápido sin email."}
+                : "Asigna un PIN numérico de 6 dígitos para acceso rápido sin email."}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
@@ -505,7 +505,7 @@ export default function GestionTrabajadores() {
                 placeholder="Ej: 1234"
                 className="font-mono text-2xl tracking-[0.5em] text-center h-14"
               />
-              <p className="text-xs text-muted-foreground text-center">4-6 dígitos numéricos</p>
+              <p className="text-xs text-muted-foreground text-center">6 dígitos numéricos</p>
             </div>
           </div>
           <DialogFooter className="flex-col sm:flex-row gap-2">

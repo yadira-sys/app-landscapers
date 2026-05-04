@@ -25,6 +25,8 @@ const Dashboard = lazy(() => import("@/pages/admin/Dashboard"));
 const GestionJardines = lazy(() => import("@/pages/admin/GestionJardines"));
 const GestionTrabajadores = lazy(() => import("@/pages/admin/GestionTrabajadores"));
 const ControlHorario = lazy(() => import("@/pages/admin/ControlHorario"));
+const Presupuestos = lazy(() => import("@/pages/admin/Presupuestos"));
+const Tareas = lazy(() => import("@/pages/admin/Tareas"));
 
 const PageLoader = () => (
   <div className="flex min-h-[50vh] items-center justify-center">
@@ -113,6 +115,12 @@ function AppRoutes() {
               <ControlHorario />
             </ProtectedRoute>
           } />
+          <Route path="/presupuestos" element={
+            <ProtectedRoute allowedRoles={["admin", "dueno"]}>
+              <Presupuestos />
+            </ProtectedRoute>
+          } />
+          <Route path="/tareas" element={<Tareas />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </Suspense>

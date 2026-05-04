@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.1"
+    PostgrestVersion: "14.5"
   }
   public: {
     Tables: {
@@ -48,13 +48,40 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "asignaciones_jardinero_id_profiles_fkey"
+            foreignKeyName: "asignaciones_jardinero_id_fkey"
             columns: ["jardinero_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
+      }
+      auth_attempts: {
+        Row: {
+          created_at: string
+          id: string
+          ip: string | null
+          reason: string | null
+          success: boolean | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          ip?: string | null
+          reason?: string | null
+          success?: boolean | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          ip?: string | null
+          reason?: string | null
+          success?: boolean | null
+          user_id?: string | null
+        }
+        Relationships: []
       }
       compras: {
         Row: {
@@ -162,7 +189,7 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "incidencias_jardinero_id_profiles_fkey"
+            foreignKeyName: "incidencias_jardinero_id_fkey"
             columns: ["jardinero_id"]
             isOneToOne: false
             referencedRelation: "profiles"
@@ -264,8 +291,73 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "jornadas_jardinero_id_profiles_fkey"
+            foreignKeyName: "jornadas_jardinero_id_fkey"
             columns: ["jardinero_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pin_login_attempts: {
+        Row: {
+          attempted_at: string
+          ip: string
+        }
+        Insert: {
+          attempted_at?: string
+          ip: string
+        }
+        Update: {
+          attempted_at?: string
+          ip?: string
+        }
+        Relationships: []
+      }
+      presupuestos: {
+        Row: {
+          cliente: string | null
+          created_at: string
+          estado: string
+          fecha_envio: string | null
+          id: string
+          importe: number | null
+          nombre: string
+          notas: string | null
+          notion_url: string | null
+          responsable_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          cliente?: string | null
+          created_at?: string
+          estado?: string
+          fecha_envio?: string | null
+          id?: string
+          importe?: number | null
+          nombre: string
+          notas?: string | null
+          notion_url?: string | null
+          responsable_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          cliente?: string | null
+          created_at?: string
+          estado?: string
+          fecha_envio?: string | null
+          id?: string
+          importe?: number | null
+          nombre?: string
+          notas?: string | null
+          notion_url?: string | null
+          responsable_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "presupuestos_responsable_id_fkey"
+            columns: ["responsable_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -279,6 +371,7 @@ export type Database = {
           full_name: string
           id: string
           pin: string | null
+          pin_hash: string | null
           updated_at: string
         }
         Insert: {
@@ -287,6 +380,7 @@ export type Database = {
           full_name: string
           id: string
           pin?: string | null
+          pin_hash?: string | null
           updated_at?: string
         }
         Update: {
@@ -295,48 +389,144 @@ export type Database = {
           full_name?: string
           id?: string
           pin?: string | null
+          pin_hash?: string | null
           updated_at?: string
         }
         Relationships: []
       }
+      role_change_log: {
+        Row: {
+          actor_id: string | null
+          changed_at: string
+          from_role: string | null
+          id: string
+          target_user_id: string | null
+          to_role: string | null
+        }
+        Insert: {
+          actor_id?: string | null
+          changed_at?: string
+          from_role?: string | null
+          id?: string
+          target_user_id?: string | null
+          to_role?: string | null
+        }
+        Update: {
+          actor_id?: string | null
+          changed_at?: string
+          from_role?: string | null
+          id?: string
+          target_user_id?: string | null
+          to_role?: string | null
+        }
+        Relationships: []
+      }
+      tareas: {
+        Row: {
+          asignado_a: string | null
+          cliente: string | null
+          created_at: string
+          estado: string
+          fecha_limite: string | null
+          id: string
+          nombre: string
+          notas: string | null
+          notion_id: string | null
+          notion_url: string | null
+          prioridad: string | null
+          updated_at: string
+        }
+        Insert: {
+          asignado_a?: string | null
+          cliente?: string | null
+          created_at?: string
+          estado?: string
+          fecha_limite?: string | null
+          id?: string
+          nombre: string
+          notas?: string | null
+          notion_id?: string | null
+          notion_url?: string | null
+          prioridad?: string | null
+          updated_at?: string
+        }
+        Update: {
+          asignado_a?: string | null
+          cliente?: string | null
+          created_at?: string
+          estado?: string
+          fecha_limite?: string | null
+          id?: string
+          nombre?: string
+          notas?: string | null
+          notion_id?: string | null
+          notion_url?: string | null
+          prioridad?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tareas_asignado_a_fkey"
+            columns: ["asignado_a"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       trabajos_extras: {
         Row: {
+          con_desplazamiento: boolean
           created_at: string
           descripcion: string
           estado: Database["public"]["Enums"]["estado_registro"]
           exportado_holded: boolean
           fecha: string
+          foto_url: string | null
+          fotos_urls: string[] | null
           horas: number | null
           id: string
+          importe: number | null
           jardin_id: string
+          km_desplazamiento: number | null
           notas_revision: string | null
           tipo: Database["public"]["Enums"]["tipo_trabajo_extra"]
           updated_at: string
           usuario_id: string
         }
         Insert: {
+          con_desplazamiento?: boolean
           created_at?: string
           descripcion: string
           estado?: Database["public"]["Enums"]["estado_registro"]
           exportado_holded?: boolean
           fecha?: string
+          foto_url?: string | null
+          fotos_urls?: string[] | null
           horas?: number | null
           id?: string
+          importe?: number | null
           jardin_id: string
+          km_desplazamiento?: number | null
           notas_revision?: string | null
           tipo?: Database["public"]["Enums"]["tipo_trabajo_extra"]
           updated_at?: string
           usuario_id: string
         }
         Update: {
+          con_desplazamiento?: boolean
           created_at?: string
           descripcion?: string
           estado?: Database["public"]["Enums"]["estado_registro"]
           exportado_holded?: boolean
           fecha?: string
+          foto_url?: string | null
+          fotos_urls?: string[] | null
           horas?: number | null
           id?: string
+          importe?: number | null
           jardin_id?: string
+          km_desplazamiento?: number | null
           notas_revision?: string | null
           tipo?: Database["public"]["Enums"]["tipo_trabajo_extra"]
           updated_at?: string
@@ -377,7 +567,7 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "user_roles_user_id_profiles_fkey"
+            foreignKeyName: "user_roles_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
@@ -401,6 +591,8 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_staff: { Args: never; Returns: boolean }
+      is_team_lead: { Args: never; Returns: boolean }
     }
     Enums: {
       app_role: "dueno" | "admin" | "encargado" | "jardinero"
