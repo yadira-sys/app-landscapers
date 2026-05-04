@@ -32,12 +32,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchRoleAndProfile = async (userId: string) => {
+  const fetchRoleAndProfile = async (userId: string, isMounted?: () => boolean) => {
     try {
       const [roleRes, profileRes] = await Promise.all([
         supabase.from("user_roles").select("role").eq("user_id", userId).maybeSingle(),
         supabase.from("profiles").select("*").eq("id", userId).maybeSingle(),
       ]);
+      if (isMounted && !isMounted()) return;
       if (roleRes.data) setRole(roleRes.data.role as AppRole);
       if (profileRes.data) setProfile(profileRes.data as Profile);
     } catch (e) {
@@ -57,7 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(session?.user ?? null);
 
       if (session?.user) {
-        await fetchRoleAndProfile(session.user.id);
+        await fetchRoleAndProfile(session.user.id, () => mounted);
       } else {
         setRole(null);
         setProfile(null);
@@ -66,9 +67,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (mounted) setLoading(false);
     };
 
-    // 1. Obtener sesión actual inmediatamente (garantía para producción)
+    // 1. Obtener sesion actual inmediatamente (garantia para produccion)
     supabase.auth.getSession().then(({ data: { session } }) => {
       initialize(session);
+    }).catch((err) => {
+      // Lock acquisition timeout u otro error — proceder sin sesion
+      console.error("getSession failed:", err);
+      if (mounted) {
+        setSession(null);
+        setUser(null);
+        setRole(null);
+        setProfile(null);
+        setLoading(false);
+      }
     });
 
     // 2. Escuchar cambios posteriores (login, logout, refresh)
@@ -84,7 +95,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setSession(session);
           setUser(session?.user ?? null);
           if (session?.user) {
-            await fetchRoleAndProfile(session.user.id);
+            await fetchRoleAndProfile(session.user.id, () => mounted);
           } else {
             setRole(null);
             setProfile(null);
