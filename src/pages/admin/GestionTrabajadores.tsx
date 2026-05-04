@@ -101,12 +101,12 @@ export default function GestionTrabajadores() {
       return;
     }
     // For jardineros, PIN is required (it's their login method)
-    if (rol === "jardinero" && !/^\d{4,6}$/.test(pinCreate)) {
-      toast({ title: "El PIN es obligatorio para jardineros (4-6 dígitos)", variant: "destructive" });
+    if (rol === "jardinero" && !/^\d{6}$/.test(pinCreate)) {
+      toast({ title: "El PIN es obligatorio para jardineros (6 dígitos)", variant: "destructive" });
       return;
     }
-    if (pinCreate && !/^\d{4,6}$/.test(pinCreate)) {
-      toast({ title: "El PIN debe tener entre 4 y 6 dígitos", variant: "destructive" });
+    if (pinCreate && !/^\d{6}$/.test(pinCreate)) {
+      toast({ title: "El PIN debe tener 6 dígitos", variant: "destructive" });
       return;
     }
     setCreating(true);
@@ -194,8 +194,8 @@ export default function GestionTrabajadores() {
 
   const handleSavePin = async () => {
     if (!pinTarget) return;
-    if (!/^\d{4,6}$/.test(pinValue)) {
-      toast({ title: "El PIN debe tener entre 4 y 6 dígitos", variant: "destructive" });
+    if (!/^\d{6}$/.test(pinValue)) {
+      toast({ title: "El PIN debe tener 6 dígitos", variant: "destructive" });
       return;
     }
     setSavingPin(true);
@@ -385,7 +385,7 @@ export default function GestionTrabajadores() {
                   maxLength={6}
                   value={pinCreate}
                   onChange={(e) => setPinCreate(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                  placeholder="4-6 dígitos"
+                  placeholder="6 dígitos"
                   className="font-mono text-xl tracking-[0.4em] text-center h-12"
                 />
                 <p className="text-xs text-muted-foreground">El jardinero usará este PIN para entrar. No necesita email.</p>
@@ -410,7 +410,7 @@ export default function GestionTrabajadores() {
                     maxLength={6}
                     value={pinCreate}
                     onChange={(e) => setPinCreate(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                    placeholder="4-6 dígitos"
+                    placeholder="6 dígitos"
                     className="font-mono tracking-widest"
                   />
                 </div>
@@ -488,7 +488,7 @@ export default function GestionTrabajadores() {
             <DialogDescription>
               {pinTarget?.pin
                 ? "Este trabajador ya tiene un PIN asignado. Puedes cambiarlo o eliminarlo."
-                : "Asigna un PIN numérico de 4-6 dígitos para acceso rápido sin email."}
+                : "Asigna un PIN numérico de 6 dígitos para acceso rápido sin email."}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
@@ -505,7 +505,7 @@ export default function GestionTrabajadores() {
                 placeholder="Ej: 1234"
                 className="font-mono text-2xl tracking-[0.5em] text-center h-14"
               />
-              <p className="text-xs text-muted-foreground text-center">4-6 dígitos numéricos</p>
+              <p className="text-xs text-muted-foreground text-center">6 dígitos numéricos</p>
             </div>
           </div>
           <DialogFooter className="flex-col sm:flex-row gap-2">

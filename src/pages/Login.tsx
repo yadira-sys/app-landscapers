@@ -37,8 +37,8 @@ export default function Login() {
   const handlePinLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    if (!/^\d{4,6}$/.test(pin)) {
-      setError("El PIN debe tener entre 4 y 6 dígitos");
+    if (!/^\d{6}$/.test(pin)) {
+      setError("El PIN debe tener 6 dígitos");
       return;
     }
     setSubmitting(true);
@@ -149,7 +149,7 @@ export default function Login() {
                 }}
               />
               <p className="text-center text-xs mt-2" style={{ color: "hsl(0 0% 40%)" }}>
-                Introduce tu PIN de 4-6 dígitos
+                Introduce tu PIN de 6 dígitos
               </p>
             </div>
 
@@ -160,7 +160,7 @@ export default function Login() {
             <div className="pt-2">
               <button
                 type="submit"
-                disabled={submitting || pin.length < 4}
+                disabled={submitting || pin.length < 6}
                 className="w-full py-3 text-xs tracking-[0.2em] uppercase font-medium rounded-lg transition-all disabled:opacity-50"
                 style={{
                   backgroundColor: "hsl(142 45% 30%)",
