@@ -1,4 +1,4 @@
-import { useRef, useState, useMemo } from "react";
+﻿import { useRef, useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -21,7 +21,7 @@ interface Compra {
   importe: number | null;
   tipo_gasto: TipoGasto;
   created_at: string;
-  jardin_id: string;
+  jardin_id: string | null;
   registrado_por: string;
   jardines: { nombre: string } | null;
   profiles: { full_name: string } | null;
@@ -57,6 +57,7 @@ export default function GestionCompras() {
   const [submitting, setSubmitting] = useState(false);
   const [fotoAmpliada, setFotoAmpliada] = useState<string | null>(null);
   const [jardinId, setJardinId] = useState("");
+  const [conceptoExtra, setConceptoExtra] = useState("");
   const [descripcion, setDescripcion] = useState("");
   const [fecha, setFecha] = useState(new Date().toISOString().split("T")[0]);
   const [importe, setImporte] = useState("");
@@ -133,7 +134,7 @@ export default function GestionCompras() {
 
   const cancelForm = () => {
     setShowForm(false);
-    setJardinId(""); setDescripcion(""); setFecha(new Date().toISOString().split("T")[0]);
+    setJardinId(""); setConceptoExtra(""); setDescripcion(""); setFecha(new Date().toISOString().split("T")[0]);
     setImporte(""); setTipoGasto("otro"); clearFoto();
   };
 
@@ -149,20 +150,20 @@ export default function GestionCompras() {
     if (fotoFile) {
       const ext = fotoFile.name.split(".").pop();
       const path = `${user!.id}/${Date.now()}.${ext}`;
-      const { error: uploadError } = await supabase.storage.from("compras-facturas").upload(path, fotoFile);
+      const { error: uploadError } = await supabase.storage.from("compras-fotos").upload(path, fotoFile);
       if (uploadError) {
         toast({ title: "Error subiendo foto", description: uploadError.message, variant: "destructive" });
         setSubmitting(false);
         return;
       }
-      const { data: urlData } = supabase.storage.from("compras-facturas").getPublicUrl(path);
+      const { data: urlData } = supabase.storage.from("compras-fotos").getPublicUrl(path);
       foto_factura_url = urlData.publicUrl;
     }
 
     const { data: insertedData, error } = await supabase.from("compras").insert({
-      jardin_id: jardinId,
+      jardin_id: esTrabajoExtra ? null : jardinId,
       registrado_por: user!.id,
-      descripcion: descripcion.trim(),
+      descripcion: esTrabajoExtra && conceptoExtra.trim() ? `[${conceptoExtra.trim()}] ${descripcion.trim()}`.trim() : descripcion.trim(),
       fecha,
       importe: importe ? parseFloat(importe) : null,
       tipo_gasto: tipoGasto,
@@ -225,7 +226,10 @@ export default function GestionCompras() {
               <label className="text-xs uppercase tracking-widest font-medium" style={{ color: "hsl(30 5% 48%)" }}>Jardín *</label>
               <Select value={jardinId} onValueChange={setJardinId}>
                 <SelectTrigger className="h-9 text-sm border-input"><SelectValue placeholder="Selecciona jardín..." /></SelectTrigger>
-                <SelectContent>{jardines.map(j => <SelectItem key={j.id} value={j.id}>{j.nombre}</SelectItem>)}</SelectContent>
+                <SelectContent>
+                  <SelectItem value="__trabajo_extra__">⚒ Trabajo Extra</SelectItem>
+                  {jardines.map(j => <SelectItem key={j.id} value={j.id}>{j.nombre}</SelectItem>)}
+                </SelectContent>
               </Select>
             </div>
 
