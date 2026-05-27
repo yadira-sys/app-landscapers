@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -6,6 +7,7 @@ import { Clock, Loader2, Download, CalendarDays, Users } from "lucide-react";
 import { format, startOfMonth, endOfMonth, subMonths, startOfWeek, endOfWeek, eachDayOfInterval, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
 import { exportCsv } from "@/lib/exportCsv";
+import QueryError from "@/components/QueryError";
 
 interface Jornada {
   id: string;
@@ -31,10 +33,6 @@ type Vista = "fecha" | "trabajador";
 
 export default function ControlHorario() {
   const { isAdmin } = useAuth();
-  const [jornadas, setJornadas] = useState<Jornada[]>([]);
-  const [trabajadores, setTrabajadores] = useState<{ id: string; full_name: string }[]>([]);
-  const [jardines, setJardines] = useState<{ id: string; nombre: string }[]>([]);
-  const [loading, setLoading] = useState(true);
   const [vista, setVista] = useState<Vista>("fecha");
 
   const [fechaDesde, setFechaDesde] = useState(startOfMonth(new Date()).toISOString().split("T")[0]);
@@ -57,34 +55,40 @@ export default function ControlHorario() {
     }
   };
 
-  const fetchData = async () => {
-    setLoading(true);
-    let q = supabase
-      .from("jornadas")
-      .select("id, jardinero_id, jardin_id, fecha, hora_inicio, hora_fin, total_horas, descripcion, estado, jardines(nombre), profiles!jornadas_jardinero_id_profiles_fkey(full_name)")
-      .gte("fecha", fechaDesde)
-      .lte("fecha", fechaHasta)
-      .not("hora_fin", "is", null)
-      .order("fecha", { ascending: false });
+  const { data, isLoading: loading, isError, refetch } = useQuery({
+    queryKey: ["control-horario", fechaDesde, fechaHasta, filtroTrabajador, filtroJardin, filtroEstado, isAdmin],
+    queryFn: async () => {
+      let q = supabase
+        .from("jornadas")
+        .select("id, jardinero_id, jardin_id, fecha, hora_inicio, hora_fin, total_horas, descripcion, estado, jardines(nombre), profiles!jornadas_jardinero_id_profiles_fkey(full_name)")
+        .gte("fecha", fechaDesde)
+        .lte("fecha", fechaHasta)
+        .not("hora_fin", "is", null)
+        .order("fecha", { ascending: false });
 
-    if (filtroTrabajador !== "todos") q = q.eq("jardinero_id", filtroTrabajador);
-    if (filtroJardin !== "todos") q = q.eq("jardin_id", filtroJardin);
-    if (filtroEstado !== "todos") q = q.eq("estado", filtroEstado as Jornada["estado"]);
+      if (filtroTrabajador !== "todos") q = q.eq("jardinero_id", filtroTrabajador);
+      if (filtroJardin !== "todos") q = q.eq("jardin_id", filtroJardin);
+      if (filtroEstado !== "todos") q = q.eq("estado", filtroEstado as Jornada["estado"]);
 
-    const [jornadasRes, trabajadoresRes, jardinesRes] = await Promise.all([
-      q.limit(500),
-      supabase.from("profiles").select("id, full_name").order("full_name"),
-      (() => { let jq = supabase.from("jardines").select("id, nombre").eq("activo", true); if (!isAdmin) jq = jq.eq("admin_only", false); return jq.order("nombre"); })(),
-    ]);
+      const [jornadasRes, trabajadoresRes, jardinesRes] = await Promise.all([
+        q.limit(500),
+        supabase.from("profiles").select("id, full_name").order("full_name"),
+        (() => { let jq = supabase.from("jardines").select("id, nombre").eq("activo", true); if (!isAdmin) jq = jq.eq("admin_only", false); return jq.order("nombre"); })(),
+      ]);
+      if (jornadasRes.error) throw jornadasRes.error;
+      if (trabajadoresRes.error) throw trabajadoresRes.error;
+      if (jardinesRes.error) throw jardinesRes.error;
+      return {
+        jornadas: (jornadasRes.data ?? []) as unknown as Jornada[],
+        trabajadores: (trabajadoresRes.data ?? []) as { id: string; full_name: string }[],
+        jardines: (jardinesRes.data ?? []) as { id: string; nombre: string }[],
+      };
+    },
+  });
 
-    if (jornadasRes.data) setJornadas(jornadasRes.data as unknown as Jornada[]);
-    if (trabajadoresRes.data) setTrabajadores(trabajadoresRes.data);
-    if (jardinesRes.data) setJardines(jardinesRes.data);
-    setLoading(false);
-  };
-
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { fetchData(); }, [fechaDesde, fechaHasta, filtroTrabajador, filtroJardin, filtroEstado, isAdmin]);
+  const jornadas = data?.jornadas ?? [];
+  const trabajadores = data?.trabajadores ?? [];
+  const jardines = data?.jardines ?? [];
 
   // O(n) summary using Map instead of O(n²) repeated filters
   const resumenPorTrabajador = (() => {
@@ -210,6 +214,8 @@ export default function ControlHorario() {
         <div className="flex justify-center py-16">
           <Loader2 className="h-8 w-8 animate-spin" style={{ color: "hsl(155 45% 45%)" }} />
         </div>
+      ) : isError ? (
+        <QueryError onRetry={() => refetch()} />
       ) : (
         <>
           {/* Resumen por trabajador */}

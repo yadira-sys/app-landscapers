@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -17,6 +18,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TreePine, Plus, Loader2, MapPin, Trash2, UserPlus, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import QueryError from "@/components/QueryError";
 
 const DIAS_SEMANA = [
   { value: "lunes", label: "L" },
@@ -51,9 +53,7 @@ interface Trabajador {
 
 export default function GestionJardines() {
   const { toast } = useToast();
-  const [jardines, setJardines] = useState<Jardin[]>([]);
-  const [trabajadores, setTrabajadores] = useState<Trabajador[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [assignOpen, setAssignOpen] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -63,14 +63,18 @@ export default function GestionJardines() {
   const [editingDias, setEditingDias] = useState<string | null>(null); // asignacion_id
   const [editDias, setEditDias] = useState<string[]>([]);
 
-  const fetchData = async () => {
-    const [jardinesRes, asignacionesRes, profilesRes] = await Promise.all([
-      supabase.from("jardines").select("*").order("nombre"),
-      supabase.from("asignaciones").select("id, jardin_id, jardinero_id, dias_semana, profiles!asignaciones_jardinero_id_profiles_fkey(id, full_name)").eq("activo", true),
-      supabase.from("profiles").select("id, full_name"),
-    ]);
+  const { data, isLoading: loading, isError, refetch } = useQuery({
+    queryKey: ["gestion-jardines"],
+    queryFn: async () => {
+      const [jardinesRes, asignacionesRes, profilesRes] = await Promise.all([
+        supabase.from("jardines").select("*").order("nombre"),
+        supabase.from("asignaciones").select("id, jardin_id, jardinero_id, dias_semana, profiles!asignaciones_jardinero_id_profiles_fkey(id, full_name)").eq("activo", true),
+        supabase.from("profiles").select("id, full_name"),
+      ]);
+      if (jardinesRes.error) throw jardinesRes.error;
+      if (asignacionesRes.error) throw asignacionesRes.error;
+      if (profilesRes.error) throw profilesRes.error;
 
-    if (jardinesRes.data) {
       const asignMap: Record<string, AsignacionJardinero[]> = {};
       (asignacionesRes.data ?? []).forEach(a => {
         if (a.profiles) {
@@ -83,17 +87,17 @@ export default function GestionJardines() {
           });
         }
       });
-      setJardines(jardinesRes.data.map((j) => ({ ...j, jardineros: asignMap[j.id] ?? [] })));
-    }
 
-    if (profilesRes.data) {
-      setTrabajadores(profilesRes.data.filter((p) => p.full_name));
-    }
+      return {
+        jardines: (jardinesRes.data ?? []).map((j) => ({ ...j, jardineros: asignMap[j.id] ?? [] })) as Jardin[],
+        trabajadores: (profilesRes.data ?? []).filter((p) => p.full_name) as Trabajador[],
+      };
+    },
+  });
 
-    setLoading(false);
-  };
-
-  useEffect(() => { fetchData(); }, []);
+  const jardines = data?.jardines ?? [];
+  const trabajadores = data?.trabajadores ?? [];
+  const refetchData = () => queryClient.invalidateQueries({ queryKey: ["gestion-jardines"] });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -108,7 +112,7 @@ export default function GestionJardines() {
       toast({ title: "✅ Jardín creado" });
       setOpen(false);
       setForm({ nombre: "", direccion: "", descripcion: "" });
-      await fetchData();
+      refetchData();
     }
     setSubmitting(false);
   };
@@ -116,14 +120,14 @@ export default function GestionJardines() {
   const toggleActivo = async (id: string, activo: boolean) => {
     await supabase.from("jardines").update({ activo: !activo }).eq("id", id);
     toast({ title: activo ? "Jardín desactivado" : "✅ Jardín activado" });
-    await fetchData();
+    refetchData();
   };
 
   const eliminarJardin = async (id: string) => {
     await supabase.from("asignaciones").update({ activo: false }).eq("jardin_id", id);
     const { error } = await supabase.from("jardines").delete().eq("id", id);
     if (error) toast({ title: "Error al eliminar jardín", variant: "destructive" });
-    else { toast({ title: "Jardín eliminado" }); await fetchData(); }
+    else { toast({ title: "Jardín eliminado" }); refetchData(); }
   };
 
   const toggleDia = (dia: string) => {
@@ -152,14 +156,14 @@ export default function GestionJardines() {
       setAssignOpen(null);
       setSelectedJardinero("");
       setSelectedDias([]);
-      await fetchData();
+      refetchData();
     }
   };
 
   const quitarJardinero = async (asignacionId: string) => {
     await supabase.from("asignaciones").update({ activo: false }).eq("id", asignacionId);
     toast({ title: "Jardinero quitado" });
-    await fetchData();
+    refetchData();
   };
 
   const startEditDias = (asignacionId: string, currentDias: string[]) => {
@@ -176,7 +180,7 @@ export default function GestionJardines() {
     await supabase.from("asignaciones").update({ dias_semana: editDias }).eq("id", editingDias);
     toast({ title: "✅ Días actualizados" });
     setEditingDias(null);
-    await fetchData();
+    refetchData();
   };
 
   if (loading) return (
@@ -184,6 +188,8 @@ export default function GestionJardines() {
       <Loader2 className="h-8 w-8 animate-spin text-primary" />
     </div>
   );
+
+  if (isError) return <QueryError onRetry={() => refetch()} />;
 
   return (
     <div className="p-4 space-y-4">

@@ -1,4 +1,5 @@
-import { useEffect, useState, useRef } from "react";
+import { useState, useRef } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -7,6 +8,7 @@ import { format, startOfMonth, endOfMonth, subMonths, startOfWeek, endOfWeek } f
 import { es } from "date-fns/locale";
 import { useToast } from "@/hooks/use-toast";
 import { exportCsv } from "@/lib/exportCsv";
+import QueryError from "@/components/QueryError";
 
 type EstadoRegistro = "pendiente" | "aprobado" | "rechazado";
 type TipoExtra = "reparacion_urgente" | "material_adicional" | "fuera_horario" | "otro";
@@ -57,12 +59,10 @@ function parsePhotos(extra: Extra): string[] {
 export default function TrabajosExtras() {
   const { user, isAdmin, isEncargado, profile } = useAuth();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const esSupervisor = isAdmin || isEncargado;
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [extras, setExtras] = useState<Extra[]>([]);
-  const [jardines, setJardines] = useState<Jardin[]>([]);
-  const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [updating, setUpdating] = useState<string | null>(null);
@@ -85,28 +85,34 @@ export default function TrabajosExtras() {
   const [fotoFiles, setFotoFiles] = useState<File[]>([]);
   const [fotoPreviews, setFotoPreviews] = useState<string[]>([]);
 
-  const fetchData = async () => {
-    const [jardinesRes, extrasRes] = await Promise.all([
-      (() => {
-        let q = supabase.from("jardines").select("id, nombre").eq("activo", true);
-        if (!isAdmin) q = q.eq("admin_only", false);
-        return q.order("nombre");
-      })(),
-      supabase
-        .from("trabajos_extras")
-        .select("id, usuario_id, jardin_id, fecha, tipo, descripcion, horas, importe, foto_url, fotos_urls, con_desplazamiento, km_desplazamiento, estado, notas_revision, created_at, jardines(nombre), profiles!trabajos_extras_usuario_id_fkey(full_name)")
-        .gte("fecha", fechaDesde)
-        .lte("fecha", fechaHasta)
-        .order("fecha", { ascending: false })
-        .limit(300),
-    ]);
-    if (jardinesRes.data) setJardines(jardinesRes.data);
-    if (extrasRes.data) setExtras(extrasRes.data as unknown as Extra[]);
-    setLoading(false);
-  };
+  const { data, isLoading: loading, isError, refetch } = useQuery({
+    queryKey: ["trabajos-extras", isAdmin, fechaDesde, fechaHasta],
+    queryFn: async () => {
+      const [jardinesRes, extrasRes] = await Promise.all([
+        (() => {
+          let q = supabase.from("jardines").select("id, nombre").eq("activo", true);
+          if (!isAdmin) q = q.eq("admin_only", false);
+          return q.order("nombre");
+        })(),
+        supabase
+          .from("trabajos_extras")
+          .select("id, usuario_id, jardin_id, fecha, tipo, descripcion, horas, importe, foto_url, fotos_urls, con_desplazamiento, km_desplazamiento, estado, notas_revision, created_at, jardines(nombre), profiles!trabajos_extras_usuario_id_fkey(full_name)")
+          .gte("fecha", fechaDesde)
+          .lte("fecha", fechaHasta)
+          .order("fecha", { ascending: false })
+          .limit(300),
+      ]);
+      if (jardinesRes.error) throw jardinesRes.error;
+      if (extrasRes.error) throw extrasRes.error;
+      return {
+        jardines: (jardinesRes.data ?? []) as Jardin[],
+        extras: (extrasRes.data ?? []) as unknown as Extra[],
+      };
+    },
+  });
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { fetchData(); }, [isAdmin, fechaDesde, fechaHasta]);
+  const jardines = data?.jardines ?? [];
+  const extras = data?.extras ?? [];
 
   const setPreset = (preset: "semana" | "mes" | "anterior" | "todo") => {
     if (preset === "semana") {
@@ -198,7 +204,7 @@ export default function TrabajosExtras() {
     } else {
       toast({ title: "✅ Trabajo extra registrado" });
       cancelForm();
-      await fetchData();
+      queryClient.invalidateQueries({ queryKey: ["trabajos-extras"] });
     }
     setSubmitting(false);
   };
@@ -210,7 +216,7 @@ export default function TrabajosExtras() {
       toast({ title: "Error al actualizar", variant: "destructive" });
     } else {
       toast({ title: "✅ Estado actualizado" });
-      await fetchData();
+      queryClient.invalidateQueries({ queryKey: ["trabajos-extras"] });
     }
     setUpdating(null);
   };
@@ -505,6 +511,8 @@ export default function TrabajosExtras() {
         <div className="flex justify-center py-16">
           <Loader2 className="h-8 w-8 animate-spin" style={{ color: "hsl(155 45% 45%)" }} />
         </div>
+      ) : isError ? (
+        <QueryError onRetry={() => refetch()} />
       ) : extrasFiltrados.length === 0 ? (
         <div className="text-center py-16 text-muted-foreground">
           <Wrench className="h-10 w-10 mx-auto mb-3 opacity-20" />

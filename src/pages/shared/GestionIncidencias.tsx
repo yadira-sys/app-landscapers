@@ -8,6 +8,7 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import QueryError from "@/components/QueryError";
 import { useAuth } from "@/contexts/AuthContext";
 
 type Urgencia = "alta" | "media" | "baja";
@@ -67,7 +68,7 @@ export default function GestionIncidencias() {
     staleTime: 5 * 60 * 1000,
   });
 
-  const { data: incidencias = [], isLoading: loading } = useQuery<Incidencia[]>({
+  const { data: incidencias = [], isLoading: loading, isError, refetch } = useQuery<Incidencia[]>({
     queryKey: ["incidencias", filtroEstado, filtroUrgencia],
     queryFn: async () => {
       let q = supabase
@@ -76,7 +77,8 @@ export default function GestionIncidencias() {
         .order("created_at", { ascending: false });
       if (filtroEstado !== "todas") q = q.eq("estado", filtroEstado as Estado);
       if (filtroUrgencia !== "todas") q = q.eq("urgencia", filtroUrgencia as Urgencia);
-      const { data } = await q;
+      const { data, error } = await q;
+      if (error) throw error;
       return (data ?? []) as unknown as Incidencia[];
     },
   });
@@ -271,6 +273,8 @@ export default function GestionIncidencias() {
         <div className="flex justify-center py-16">
           <Loader2 className="h-8 w-8 animate-spin" style={{ color: "hsl(0 72% 51%)" }} />
         </div>
+      ) : isError ? (
+        <QueryError onRetry={() => refetch()} />
       ) : incidencias.length === 0 ? (
         <div className="text-center py-16 text-muted-foreground">
           <AlertTriangle className="h-10 w-10 mx-auto mb-3 opacity-20" />

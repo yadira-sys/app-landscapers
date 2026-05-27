@@ -9,6 +9,7 @@ import { es } from "date-fns/locale";
 import { useToast } from "@/hooks/use-toast";
 import ResumenGastos from "@/components/ResumenGastos";
 import { exportCsv } from "@/lib/exportCsv";
+import QueryError from "@/components/QueryError";
 
 type TipoGasto = "combustible" | "herramientas" | "material" | "comida" | "otro";
 
@@ -85,7 +86,7 @@ export default function GestionCompras() {
   });
 
   // --- React Query: compras (filtered at DB level) ---
-  const { data: compras = [], isLoading: loading } = useQuery<Compra[]>({
+  const { data: compras = [], isLoading: loading, isError, refetch } = useQuery<Compra[]>({
     queryKey: ["compras", fechaDesde, fechaHasta, filtroJardin],
     queryFn: async () => {
       let q = supabase
@@ -99,7 +100,8 @@ export default function GestionCompras() {
         q = q.eq("jardin_id", filtroJardin);
       }
 
-      const { data } = await q;
+      const { data, error } = await q;
+      if (error) throw error;
       return (data ?? []) as unknown as Compra[];
     },
   });
@@ -387,6 +389,8 @@ export default function GestionCompras() {
       {/* List */}
       {loading ? (
         <div className="flex justify-center py-16"><Loader2 className="h-8 w-8 animate-spin" style={{ color: "hsl(155 45% 45%)" }} /></div>
+      ) : isError ? (
+        <QueryError onRetry={() => refetch()} />
       ) : compras.length === 0 ? (
         <div className="text-center py-16 text-muted-foreground">
           <Receipt className="h-10 w-10 mx-auto mb-3 opacity-20" />

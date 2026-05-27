@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { ClipboardList, Loader2, Clock } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
+import QueryError from "@/components/QueryError";
 
 interface Jornada {
   id: string;
@@ -17,22 +18,21 @@ interface Jornada {
 
 export default function HistorialJardinero() {
   const { user } = useAuth();
-  const [jornadas, setJornadas] = useState<Jornada[]>([]);
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (!user) return;
-    supabase
-      .from("jornadas")
-      .select("id, entrada_at, salida_at, duracion_minutos, jardines(nombre)")
-      .eq("jardinero_id", user.id)
-      .order("entrada_at", { ascending: false })
-      .limit(50)
-      .then(({ data }) => {
-        if (data) setJornadas(data as unknown as Jornada[]);
-        setLoading(false);
-      });
-  }, [user]);
+  const { data: jornadas = [], isLoading: loading, isError, refetch } = useQuery({
+    queryKey: ["historial-jardinero", user?.id],
+    enabled: !!user,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("jornadas")
+        .select("id, entrada_at, salida_at, duracion_minutos, jardines(nombre)")
+        .eq("jardinero_id", user!.id)
+        .order("entrada_at", { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      return (data ?? []) as unknown as Jornada[];
+    },
+  });
 
   const formatDuracion = (min: number | null) => {
     if (!min) return "—";
@@ -46,6 +46,8 @@ export default function HistorialJardinero() {
       <Loader2 className="h-8 w-8 animate-spin text-primary" />
     </div>
   );
+
+  if (isError) return <QueryError onRetry={() => refetch()} />;
 
   return (
     <div className="p-4 space-y-4">

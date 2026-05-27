@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { BarChart3, Users, TreePine, Clock, Loader2, ShoppingCart, Wrench, Download } from "lucide-react";
 import { exportCsv } from "@/lib/exportCsv";
+import QueryError from "@/components/QueryError";
 
 interface Stats {
   horasPendientes: number;
@@ -34,6 +35,9 @@ async function fetchDashboard() {
     supabase.from("compras").select("jardin_id, importe"),
     supabase.from("trabajos_extras").select("jardin_id"),
   ]);
+
+  const firstError = [horasPend, extrasPend, gastosPend, jardRes, pRes, jornadasRes, comprasRes, extrasRes].find(r => r.error);
+  if (firstError?.error) throw firstError.error;
 
   const jornadas = jornadasRes.data ?? [];
   const horasSemanales = jornadas.reduce((sum: number, j) => sum + (j.total_horas ?? 0), 0);
@@ -72,7 +76,7 @@ async function fetchDashboard() {
 }
 
 export default function Dashboard() {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["dashboard"],
     queryFn: fetchDashboard,
   });
@@ -94,6 +98,8 @@ export default function Dashboard() {
       <Loader2 className="h-8 w-8 animate-spin" style={{ color: "hsl(155 45% 45%)" }} />
     </div>
   );
+
+  if (isError) return <QueryError onRetry={() => refetch()} />;
 
   return (
     <div className="p-5 space-y-6">

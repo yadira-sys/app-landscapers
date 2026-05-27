@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -18,6 +19,7 @@ import {
 import { Users, Loader2, Plus, Trash2, Pencil, KeyRound, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
+import QueryError from "@/components/QueryError";
 
 interface Trabajador {
   id: string;
@@ -44,8 +46,7 @@ const roleColors: Record<string, string> = {
 export default function GestionTrabajadores() {
   const { isAdmin } = useAuth();
   const { toast } = useToast();
-  const [trabajadores, setTrabajadores] = useState<Trabajador[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [showCreate, setShowCreate] = useState(false);
   const [creating, setCreating] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Trabajador | null>(null);
@@ -68,27 +69,28 @@ export default function GestionTrabajadores() {
   const [rol, setRol] = useState("jardinero");
   const [pinCreate, setPinCreate] = useState("");
 
-  const fetchTrabajadores = async () => {
-    const [profilesRes, rolesRes] = await Promise.all([
-      supabase.from("profiles").select("id, full_name, email, pin"),
-      supabase.from("user_roles").select("user_id, role"),
-    ]);
-    if (profilesRes.data) {
+  const { data: trabajadores = [], isLoading: loading, isError, refetch } = useQuery({
+    queryKey: ["gestion-trabajadores"],
+    queryFn: async () => {
+      const [profilesRes, rolesRes] = await Promise.all([
+        supabase.from("profiles").select("id, full_name, email, pin"),
+        supabase.from("user_roles").select("user_id, role"),
+      ]);
+      if (profilesRes.error) throw profilesRes.error;
+      if (rolesRes.error) throw rolesRes.error;
       const rolesMap: Record<string, string> = {};
       (rolesRes.data ?? []).forEach(r => { rolesMap[r.user_id] = r.role; });
-      const mapped = profilesRes.data.map(p => ({
+      return (profilesRes.data ?? []).map(p => ({
         id: p.id,
         full_name: p.full_name,
         email: p.email,
         pin: p.pin,
         role: rolesMap[p.id] ?? null,
-      }));
-      setTrabajadores(mapped);
-    }
-    setLoading(false);
-  };
+      })) as Trabajador[];
+    },
+  });
 
-  useEffect(() => { fetchTrabajadores(); }, []);
+  const refetchData = () => queryClient.invalidateQueries({ queryKey: ["gestion-trabajadores"] });
 
   const handleCreate = async () => {
     if (!nombre.trim()) {
@@ -125,7 +127,7 @@ export default function GestionTrabajadores() {
       toast({ title: "Trabajador creado correctamente" });
       setShowCreate(false);
       setNombre(""); setEmail(""); setPassword(""); setRol("jardinero"); setPinCreate("");
-      await fetchTrabajadores();
+      refetchData();
     } catch (e: unknown) {
       toast({ title: "Error al crear", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     } finally {
@@ -140,7 +142,7 @@ export default function GestionTrabajadores() {
       });
       if (error || data?.error) throw new Error(data?.error || error?.message);
       toast({ title: `Rol de ${t.full_name} cambiado a ${roleLabels[newRole]}` });
-      await fetchTrabajadores();
+      refetchData();
     } catch (e: unknown) {
       toast({ title: "Error al cambiar rol", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     }
@@ -166,7 +168,7 @@ export default function GestionTrabajadores() {
       if (error || data?.error) throw new Error(data?.error || error?.message);
       toast({ title: "Datos actualizados" });
       setEditTarget(null);
-      await fetchTrabajadores();
+      refetchData();
     } catch (e: unknown) {
       toast({ title: "Error al actualizar", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     } finally {
@@ -184,7 +186,7 @@ export default function GestionTrabajadores() {
       if (error || data?.error) throw new Error(data?.error || error?.message);
       toast({ title: "Trabajador eliminado" });
       setDeleteTarget(null);
-      await fetchTrabajadores();
+      refetchData();
     } catch (e: unknown) {
       toast({ title: "Error al eliminar", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     } finally {
@@ -207,7 +209,7 @@ export default function GestionTrabajadores() {
       toast({ title: `PIN asignado a ${pinTarget.full_name}` });
       setPinTarget(null);
       setPinValue("");
-      await fetchTrabajadores();
+      refetchData();
     } catch (e: unknown) {
       toast({ title: "Error al asignar PIN", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     } finally {
@@ -223,7 +225,7 @@ export default function GestionTrabajadores() {
       });
       if (error || data?.error) throw new Error(data?.error || error?.message);
       toast({ title: `PIN eliminado de ${t.full_name}` });
-      await fetchTrabajadores();
+      refetchData();
     } catch (e: unknown) {
       toast({ title: "Error al eliminar PIN", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     } finally {
@@ -236,6 +238,8 @@ export default function GestionTrabajadores() {
       <Loader2 className="h-8 w-8 animate-spin text-primary" />
     </div>
   );
+
+  if (isError) return <QueryError onRetry={() => refetch()} />;
 
   return (
     <div className="p-4 space-y-4">

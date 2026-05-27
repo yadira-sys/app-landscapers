@@ -9,6 +9,7 @@ import { ClipboardList, Loader2, Download } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { exportCsv } from "@/lib/exportCsv";
+import QueryError from "@/components/QueryError";
 
 interface Jornada {
   id: string;
@@ -34,7 +35,7 @@ export default function HistorialCompleto() {
     staleTime: 5 * 60 * 1000,
   });
 
-  const { data: jornadas = [], isLoading: loading } = useQuery<Jornada[]>({
+  const { data: jornadas = [], isLoading: loading, isError, refetch } = useQuery<Jornada[]>({
     queryKey: ["historial", filtroJardin],
     queryFn: async () => {
       let q = supabase
@@ -45,7 +46,8 @@ export default function HistorialCompleto() {
 
       if (filtroJardin !== "todos") q = q.eq("jardin_id", filtroJardin);
 
-      const { data } = await q;
+      const { data, error } = await q;
+      if (error) throw error;
       return (data ?? []) as unknown as Jornada[];
     },
   });
@@ -103,6 +105,8 @@ export default function HistorialCompleto() {
         <div className="flex justify-center py-16">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
+      ) : isError ? (
+        <QueryError onRetry={() => refetch()} />
       ) : jornadas.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center text-muted-foreground">

@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent } from "@/components/ui/card";
@@ -18,6 +19,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
+import QueryError from "@/components/QueryError";
 
 interface Tarea {
   id: string;
@@ -61,11 +63,9 @@ const prioridadColor: Record<string, string> = {
 export default function Tareas() {
   const { role, user } = useAuth();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const isStaff = role === "admin" || role === "dueno" || role === "encargado";
 
-  const [tareas, setTareas] = useState<Tarea[]>([]);
-  const [trabajadores, setTrabajadores] = useState<Trabajador[]>([]);
-  const [loading, setLoading] = useState(true);
   const [filtro, setFiltro] = useState("activas");
   const [editTarget, setEditTarget] = useState<Tarea | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Tarea | null>(null);
@@ -82,32 +82,32 @@ export default function Tareas() {
   const [fNotas, setFNotas] = useState("");
   const [fNotion, setFNotion] = useState("");
 
-  const fetchData = async () => {
-    const queries: PromiseLike<{ data: unknown }>[] = [
-      isStaff
-        ? supabase.from("tareas").select("*").order("created_at", { ascending: false })
-        : supabase.from("tareas").select("*").eq("asignado_a", user!.id).order("created_at", { ascending: false }),
-    ];
-    if (isStaff) {
-      queries.push(
-        supabase.from("profiles").select("id, full_name").then(async (res) => {
-          if (!res.data) return res;
-          const rolesRes = await supabase.from("user_roles").select("user_id, role");
-          const rolesMap: Record<string, string> = {};
-          (rolesRes.data ?? []).forEach(r => { rolesMap[r.user_id] = r.role; });
-          return { data: res.data.map(p => ({ ...p, role: rolesMap[p.id] ?? null })) };
-        })
-      );
-    }
+  const { data, isLoading: loading, isError, refetch } = useQuery({
+    queryKey: ["tareas", isStaff, user?.id],
+    enabled: !!user,
+    queryFn: async () => {
+      const tareasRes = isStaff
+        ? await supabase.from("tareas").select("*").order("created_at", { ascending: false })
+        : await supabase.from("tareas").select("*").eq("asignado_a", user!.id).order("created_at", { ascending: false });
+      if (tareasRes.error) throw tareasRes.error;
 
-    const [tareasRes, trabajadoresRes] = await Promise.all(queries);
-    if (tareasRes?.data) setTareas(tareasRes.data as Tarea[]);
-    if (trabajadoresRes?.data) setTrabajadores(trabajadoresRes.data as Trabajador[]);
-    setLoading(false);
-  };
+      let trabajadores: Trabajador[] = [];
+      if (isStaff) {
+        const profilesRes = await supabase.from("profiles").select("id, full_name");
+        if (profilesRes.error) throw profilesRes.error;
+        const rolesRes = await supabase.from("user_roles").select("user_id, role");
+        if (rolesRes.error) throw rolesRes.error;
+        const rolesMap: Record<string, string> = {};
+        (rolesRes.data ?? []).forEach(r => { rolesMap[r.user_id] = r.role; });
+        trabajadores = (profilesRes.data ?? []).map(p => ({ ...p, role: rolesMap[p.id] ?? null })) as Trabajador[];
+      }
+      return { tareas: (tareasRes.data ?? []) as Tarea[], trabajadores };
+    },
+  });
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { fetchData(); }, []);
+  const tareas = data?.tareas ?? [];
+  const trabajadores = data?.trabajadores ?? [];
+  const refetchData = () => queryClient.invalidateQueries({ queryKey: ["tareas"] });
 
   const filtered = tareas.filter(t => {
     if (filtro === "activas") return t.estado !== "completada";
@@ -150,11 +150,11 @@ export default function Tareas() {
     if (editTarget) {
       const { error } = await supabase.from("tareas").update(payload).eq("id", editTarget.id);
       if (error) toast({ title: "Error al guardar", description: error.message, variant: "destructive" });
-      else { toast({ title: "Tarea actualizada" }); setEditTarget(null); fetchData(); }
+      else { toast({ title: "Tarea actualizada" }); setEditTarget(null); refetchData(); }
     } else {
       const { error } = await supabase.from("tareas").insert(payload);
       if (error) toast({ title: "Error al crear", description: error.message, variant: "destructive" });
-      else { toast({ title: "Tarea creada" }); setShowCreate(false); fetchData(); }
+      else { toast({ title: "Tarea creada" }); setShowCreate(false); refetchData(); }
     }
     setSaving(false);
   };
@@ -164,7 +164,7 @@ export default function Tareas() {
     setDeleting(true);
     const { error } = await supabase.from("tareas").delete().eq("id", deleteTarget.id);
     if (error) toast({ title: "Error al eliminar", description: error.message, variant: "destructive" });
-    else { toast({ title: "Tarea eliminada" }); setDeleteTarget(null); fetchData(); }
+    else { toast({ title: "Tarea eliminada" }); setDeleteTarget(null); refetchData(); }
     setDeleting(false);
   };
 
@@ -172,7 +172,7 @@ export default function Tareas() {
     const nuevoEstado = t.estado === "completada" ? "pendiente" : "completada";
     const { error } = await supabase.from("tareas").update({ estado: nuevoEstado }).eq("id", t.id);
     if (error) toast({ title: "Error", description: error.message, variant: "destructive" });
-    else fetchData();
+    else refetchData();
   };
 
   const nombreAsignado = (id: string | null) => {
@@ -311,6 +311,8 @@ export default function Tareas() {
         <div className="flex justify-center py-12">
           <Loader2 className="h-6 w-6 animate-spin" style={{ color: "hsl(142 55% 50%)" }} />
         </div>
+      ) : isError ? (
+        <QueryError onRetry={() => refetch()} />
       ) : filtered.length === 0 ? (
         <p className="text-center py-12 text-sm" style={{ color: "hsl(0 0% 40%)" }}>No hay tareas</p>
       ) : (
