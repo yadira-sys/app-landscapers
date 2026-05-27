@@ -58,7 +58,6 @@ export default function GestionCompras() {
   const [submitting, setSubmitting] = useState(false);
   const [fotoAmpliada, setFotoAmpliada] = useState<string | null>(null);
   const [jardinId, setJardinId] = useState("");
-  const [conceptoExtra, setConceptoExtra] = useState("");
   const [descripcion, setDescripcion] = useState("");
   const [fecha, setFecha] = useState(new Date().toISOString().split("T")[0]);
   const [importe, setImporte] = useState("");
@@ -136,7 +135,7 @@ export default function GestionCompras() {
 
   const cancelForm = () => {
     setShowForm(false);
-    setJardinId(""); setConceptoExtra(""); setDescripcion(""); setFecha(new Date().toISOString().split("T")[0]);
+    setJardinId(""); setDescripcion(""); setFecha(new Date().toISOString().split("T")[0]);
     setImporte(""); setTipoGasto("otro"); clearFoto();
   };
 
@@ -163,9 +162,9 @@ export default function GestionCompras() {
     }
 
     const { data: insertedData, error } = await supabase.from("compras").insert({
-      jardin_id: esTrabajoExtra ? null : jardinId,
+      jardin_id: jardinId,
       registrado_por: user!.id,
-      descripcion: esTrabajoExtra && conceptoExtra.trim() ? `[${conceptoExtra.trim()}] ${descripcion.trim()}`.trim() : descripcion.trim(),
+      descripcion: descripcion.trim(),
       fecha,
       importe: importe ? parseFloat(importe) : null,
       tipo_gasto: tipoGasto,
@@ -229,7 +228,6 @@ export default function GestionCompras() {
               <Select value={jardinId} onValueChange={setJardinId}>
                 <SelectTrigger className="h-9 text-sm border-input"><SelectValue placeholder="Selecciona jardín..." /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__trabajo_extra__">⚒ Trabajo Extra</SelectItem>
                   {jardines.map(j => <SelectItem key={j.id} value={j.id}>{j.nombre}</SelectItem>)}
                 </SelectContent>
               </Select>
