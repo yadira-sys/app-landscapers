@@ -7,6 +7,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import Layout from "@/components/Layout";
+import RoleError from "@/components/RoleError";
 import { Loader2 } from "lucide-react";
 
 // Lazy-loaded pages
@@ -46,7 +47,7 @@ const queryClient = new QueryClient({
 });
 
 function AppRoutes() {
-  const { user, role, loading } = useAuth();
+  const { user, role, loading, roleError, retryRole, signOut } = useAuth();
 
   if (loading) return (
     <div className="flex min-h-screen items-center justify-center" style={{ backgroundColor: "hsl(150 25% 12%)" }}>
@@ -56,10 +57,10 @@ function AppRoutes() {
 
   if (!user) return <Navigate to="/login" replace />;
 
+  // Sesión cargada pero sin rol: fallo de carga o usuario sin rol asignado.
+  // Nunca dejar un spinner sin salida — mostrar pantalla con reintentar / cerrar sesión.
   if (!role) return (
-    <div className="flex min-h-screen items-center justify-center" style={{ backgroundColor: "hsl(150 25% 12%)" }}>
-      <Loader2 className="h-8 w-8 animate-spin" style={{ color: "hsl(142 55% 50%)" }} />
-    </div>
+    <RoleError onRetry={retryRole} onSignOut={signOut} failed={roleError} />
   );
 
   const isAdmin = role === "admin" || role === "dueno";

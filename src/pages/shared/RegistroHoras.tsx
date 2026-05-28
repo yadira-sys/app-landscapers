@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -7,6 +8,7 @@ import { format, startOfMonth, endOfMonth, subMonths } from "date-fns";
 import { es } from "date-fns/locale";
 import { useToast } from "@/hooks/use-toast";
 import { exportCsv } from "@/lib/exportCsv";
+import QueryError from "@/components/QueryError";
 
 type EstadoRegistro = "pendiente" | "aprobado" | "rechazado";
 
@@ -36,11 +38,9 @@ const estadoConfig: Record<EstadoRegistro, { label: string; color: string; bg: s
 export default function RegistroHoras() {
   const { user, isAdmin, isEncargado, profile } = useAuth();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const esSupervisor = isAdmin || isEncargado;
 
-  const [registros, setRegistros] = useState<Registro[]>([]);
-  const [jardines, setJardines] = useState<Jardin[]>([]);
-  const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [updating, setUpdating] = useState<string | null>(null);
@@ -58,7 +58,6 @@ export default function RegistroHoras() {
   const [filtroTrabajador, setFiltroTrabajador] = useState("todos");
   const [fechaDesde, setFechaDesde] = useState(startOfMonth(new Date()).toISOString().split("T")[0]);
   const [fechaHasta, setFechaHasta] = useState(endOfMonth(new Date()).toISOString().split("T")[0]);
-  const [trabajadores, setTrabajadores] = useState<{ id: string; full_name: string }[]>([]);
 
   const setPreset = (preset: "mes" | "anterior" | "todo") => {
     if (preset === "mes") {
@@ -82,29 +81,36 @@ export default function RegistroHoras() {
     return mins > 0 ? Math.round(mins / 60 * 100) / 100 : null;
   };
 
-  const fetchData = async () => {
-    const registrosQ = supabase
-      .from("jornadas")
-      .select("id, jardin_id, jardinero_id, fecha, hora_inicio, hora_fin, total_horas, descripcion, estado, created_at, jardines(nombre), profiles!jornadas_jardinero_id_profiles_fkey(full_name)")
-      .not("hora_inicio", "is", null)
-      .gte("fecha", fechaDesde)
-      .lte("fecha", fechaHasta)
-      .order("fecha", { ascending: false })
-      .limit(300);
+  const { data, isLoading: loading, isError, refetch } = useQuery({
+    queryKey: ["registro-horas", isAdmin, esSupervisor, fechaDesde, fechaHasta],
+    queryFn: async () => {
+      const registrosQ = supabase
+        .from("jornadas")
+        .select("id, jardin_id, jardinero_id, fecha, hora_inicio, hora_fin, total_horas, descripcion, estado, created_at, jardines(nombre), profiles!jornadas_jardinero_id_profiles_fkey(full_name)")
+        .not("hora_inicio", "is", null)
+        .gte("fecha", fechaDesde)
+        .lte("fecha", fechaHasta)
+        .order("fecha", { ascending: false })
+        .limit(300);
 
-    const [jardinesRes, registrosRes, trabajadoresRes] = await Promise.all([
-      (() => { let q = supabase.from("jardines").select("id, nombre").eq("activo", true); if (!isAdmin) q = q.eq("admin_only", false); return q.order("nombre"); })(),
-      registrosQ,
-      esSupervisor ? supabase.from("profiles").select("id, full_name").order("full_name") : Promise.resolve({ data: [] }),
-    ]);
-    if (jardinesRes.data) setJardines(jardinesRes.data);
-    if (registrosRes.data) setRegistros(registrosRes.data as unknown as Registro[]);
-    if (trabajadoresRes.data) setTrabajadores(trabajadoresRes.data as { id: string; full_name: string }[]);
-    setLoading(false);
-  };
+      const [jardinesRes, registrosRes, trabajadoresRes] = await Promise.all([
+        (() => { let q = supabase.from("jardines").select("id, nombre").eq("activo", true); if (!isAdmin) q = q.eq("admin_only", false); return q.order("nombre"); })(),
+        registrosQ,
+        esSupervisor ? supabase.from("profiles").select("id, full_name").order("full_name") : Promise.resolve({ data: [], error: null }),
+      ]);
+      if (jardinesRes.error) throw jardinesRes.error;
+      if (registrosRes.error) throw registrosRes.error;
+      return {
+        jardines: (jardinesRes.data ?? []) as Jardin[],
+        registros: (registrosRes.data ?? []) as unknown as Registro[],
+        trabajadores: (trabajadoresRes.data ?? []) as { id: string; full_name: string }[],
+      };
+    },
+  });
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { fetchData(); }, [isAdmin, fechaDesde, fechaHasta]);
+  const jardines = data?.jardines ?? [];
+  const registros = data?.registros ?? [];
+  const trabajadores = data?.trabajadores ?? [];
 
   const cancelForm = () => {
     setShowForm(false);
@@ -141,7 +147,7 @@ export default function RegistroHoras() {
       toast({ title: "✅ Horas registradas (pendiente de aprobación)" });
       // No sync to Holded here — only approved hours get synced
       cancelForm();
-      await fetchData();
+      queryClient.invalidateQueries({ queryKey: ["registro-horas"] });
     }
     setSubmitting(false);
   };
@@ -154,7 +160,7 @@ export default function RegistroHoras() {
       toast({ title: "Error al actualizar", variant: "destructive" });
     } else {
         toast({ title: "✅ Estado actualizado" });
-      await fetchData();
+      queryClient.invalidateQueries({ queryKey: ["registro-horas"] });
     }
     setUpdating(null);
   };
@@ -308,6 +314,8 @@ export default function RegistroHoras() {
       {/* List */}
       {loading ? (
         <div className="flex justify-center py-16"><Loader2 className="h-8 w-8 animate-spin" style={{ color: "hsl(155 45% 45%)" }} /></div>
+      ) : isError ? (
+        <QueryError onRetry={() => refetch()} />
       ) : registrosFiltrados.length === 0 ? (
         <div className="text-center py-16 text-muted-foreground">
           <Clock className="h-10 w-10 mx-auto mb-3 opacity-20" />

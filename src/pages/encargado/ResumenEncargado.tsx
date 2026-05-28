@@ -1,12 +1,7 @@
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Users, Clock, Wrench, ShoppingCart, Loader2, AlertCircle } from "lucide-react";
-
-interface PendingCounts {
-  horas: number;
-  extras: number;
-  gastos: number;
-}
+import QueryError from "@/components/QueryError";
 
 interface HorasRecientes {
   id: string;
@@ -17,12 +12,9 @@ interface HorasRecientes {
 }
 
 export default function ResumenEncargado() {
-  const [counts, setCounts] = useState<PendingCounts>({ horas: 0, extras: 0, gastos: 0 });
-  const [recientes, setRecientes] = useState<HorasRecientes[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetch = async () => {
+  const { data, isLoading: loading, isError, refetch } = useQuery({
+    queryKey: ["resumen-encargado"],
+    queryFn: async () => {
       const [horasRes, extrasRes, gastosRes, recientesRes] = await Promise.all([
         supabase.from("jornadas").select("id", { count: "exact" }).eq("estado", "pendiente").not("hora_inicio", "is", null),
         supabase.from("trabajos_extras").select("id", { count: "exact" }).eq("estado", "pendiente"),
@@ -35,23 +27,28 @@ export default function ResumenEncargado() {
           .order("fecha", { ascending: false })
           .limit(10),
       ]);
+      if (recientesRes.error) throw recientesRes.error;
+      return {
+        counts: {
+          horas: horasRes.count ?? 0,
+          extras: extrasRes.count ?? 0,
+          gastos: gastosRes.count ?? 0,
+        },
+        recientes: (recientesRes.data ?? []) as unknown as HorasRecientes[],
+      };
+    },
+  });
 
-      setCounts({
-        horas: horasRes.count ?? 0,
-        extras: extrasRes.count ?? 0,
-        gastos: gastosRes.count ?? 0,
-      });
-      if (recientesRes.data) setRecientes(recientesRes.data as unknown as HorasRecientes[]);
-      setLoading(false);
-    };
-    fetch();
-  }, []);
+  const counts = data?.counts ?? { horas: 0, extras: 0, gastos: 0 };
+  const recientes = data?.recientes ?? [];
 
   if (loading) return (
     <div className="flex justify-center items-center h-64">
       <Loader2 className="h-8 w-8 animate-spin" style={{ color: "hsl(155 45% 45%)" }} />
     </div>
   );
+
+  if (isError) return <QueryError onRetry={() => refetch()} />;
 
   const pendingCards = [
     { label: "Horas por aprobar", value: counts.horas, icon: Clock, accent: "hsl(38 90% 50%)" },

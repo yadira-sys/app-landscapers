@@ -1,4 +1,5 @@
-import { useEffect, useState, useRef } from "react";
+import { useState, useRef } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -16,6 +17,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { FileText, Plus, Loader2, ExternalLink, Pencil, Trash2, Camera, X, Image } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import QueryError from "@/components/QueryError";
 
 interface Presupuesto {
   id: string;
@@ -47,9 +49,8 @@ function publicUrl(path: string) {
 
 export default function Presupuestos() {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [items, setItems] = useState<Presupuesto[]>([]);
-  const [loading, setLoading] = useState(true);
   const [editTarget, setEditTarget] = useState<Presupuesto | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Presupuesto | null>(null);
   const [showCreate, setShowCreate] = useState(false);
@@ -70,21 +71,24 @@ export default function Presupuestos() {
   const [fNotas, setFNotas] = useState("");
   const [fNotion, setFNotion] = useState("");
 
-  const fetchData = async () => {
-    const { data } = await supabase
-      .from("presupuestos")
-      .select("*")
-      .order("created_at", { ascending: false });
-    if (data) setItems(data as Presupuesto[]);
-    setLoading(false);
-  };
+  const { data: items = [], isLoading: loading, isError, refetch } = useQuery({
+    queryKey: ["presupuestos"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("presupuestos")
+        .select("*")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as Presupuesto[];
+    },
+  });
+
+  const refetchData = () => queryClient.invalidateQueries({ queryKey: ["presupuestos"] });
 
   const loadImages = async (id: string) => {
     const { data } = await supabase.storage.from("presupuestos").list(id);
     setImages(data ? data.map(f => `${id}/${f.name}`) : []);
   };
-
-  useEffect(() => { fetchData(); }, []);
 
   const openEdit = async (p: Presupuesto) => {
     setEditTarget(p);
@@ -126,11 +130,11 @@ export default function Presupuestos() {
     if (editTarget) {
       const { error } = await supabase.from("presupuestos").update(payload).eq("id", editTarget.id);
       if (error) toast({ title: "Error al guardar", description: error.message, variant: "destructive" });
-      else { toast({ title: "Presupuesto actualizado" }); setEditTarget(null); fetchData(); }
+      else { toast({ title: "Presupuesto actualizado" }); setEditTarget(null); refetchData(); }
     } else {
       const { error } = await supabase.from("presupuestos").insert({ id: currentId!, ...payload });
       if (error) toast({ title: "Error al crear", description: error.message, variant: "destructive" });
-      else { toast({ title: "Presupuesto creado" }); setShowCreate(false); fetchData(); }
+      else { toast({ title: "Presupuesto creado" }); setShowCreate(false); refetchData(); }
     }
     setSaving(false);
   };
@@ -145,7 +149,7 @@ export default function Presupuestos() {
     }
     const { error } = await supabase.from("presupuestos").delete().eq("id", deleteTarget.id);
     if (error) toast({ title: "Error al eliminar", description: error.message, variant: "destructive" });
-    else { toast({ title: "Presupuesto eliminado" }); setDeleteTarget(null); fetchData(); }
+    else { toast({ title: "Presupuesto eliminado" }); setDeleteTarget(null); refetchData(); }
     setDeleting(false);
   };
 
@@ -287,6 +291,8 @@ export default function Presupuestos() {
         <div className="flex justify-center py-12">
           <Loader2 className="h-6 w-6 animate-spin" style={{ color: "hsl(142 55% 50%)" }} />
         </div>
+      ) : isError ? (
+        <QueryError onRetry={() => refetch()} />
       ) : (
         <div className="flex-1 overflow-x-auto scrollbar-hide px-4 pb-4"
           style={{ WebkitOverflowScrolling: "touch" }}>

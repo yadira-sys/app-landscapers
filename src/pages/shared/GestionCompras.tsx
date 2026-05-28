@@ -9,6 +9,7 @@ import { es } from "date-fns/locale";
 import { useToast } from "@/hooks/use-toast";
 import ResumenGastos from "@/components/ResumenGastos";
 import { exportCsv } from "@/lib/exportCsv";
+import QueryError from "@/components/QueryError";
 
 type TipoGasto = "combustible" | "herramientas" | "material" | "comida" | "otro";
 
@@ -57,7 +58,6 @@ export default function GestionCompras() {
   const [submitting, setSubmitting] = useState(false);
   const [fotoAmpliada, setFotoAmpliada] = useState<string | null>(null);
   const [jardinId, setJardinId] = useState("");
-  const [conceptoExtra, setConceptoExtra] = useState("");
   const [descripcion, setDescripcion] = useState("");
   const [fecha, setFecha] = useState(new Date().toISOString().split("T")[0]);
   const [importe, setImporte] = useState("");
@@ -85,7 +85,7 @@ export default function GestionCompras() {
   });
 
   // --- React Query: compras (filtered at DB level) ---
-  const { data: compras = [], isLoading: loading } = useQuery<Compra[]>({
+  const { data: compras = [], isLoading: loading, isError, refetch } = useQuery<Compra[]>({
     queryKey: ["compras", fechaDesde, fechaHasta, filtroJardin],
     queryFn: async () => {
       let q = supabase
@@ -99,7 +99,8 @@ export default function GestionCompras() {
         q = q.eq("jardin_id", filtroJardin);
       }
 
-      const { data } = await q;
+      const { data, error } = await q;
+      if (error) throw error;
       return (data ?? []) as unknown as Compra[];
     },
   });
@@ -134,7 +135,7 @@ export default function GestionCompras() {
 
   const cancelForm = () => {
     setShowForm(false);
-    setJardinId(""); setConceptoExtra(""); setDescripcion(""); setFecha(new Date().toISOString().split("T")[0]);
+    setJardinId(""); setDescripcion(""); setFecha(new Date().toISOString().split("T")[0]);
     setImporte(""); setTipoGasto("otro"); clearFoto();
   };
 
@@ -161,9 +162,9 @@ export default function GestionCompras() {
     }
 
     const { data: insertedData, error } = await supabase.from("compras").insert({
-      jardin_id: esTrabajoExtra ? null : jardinId,
+      jardin_id: jardinId,
       registrado_por: user!.id,
-      descripcion: esTrabajoExtra && conceptoExtra.trim() ? `[${conceptoExtra.trim()}] ${descripcion.trim()}`.trim() : descripcion.trim(),
+      descripcion: descripcion.trim(),
       fecha,
       importe: importe ? parseFloat(importe) : null,
       tipo_gasto: tipoGasto,
@@ -227,7 +228,6 @@ export default function GestionCompras() {
               <Select value={jardinId} onValueChange={setJardinId}>
                 <SelectTrigger className="h-9 text-sm border-input"><SelectValue placeholder="Selecciona jardín..." /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__trabajo_extra__">⚒ Trabajo Extra</SelectItem>
                   {jardines.map(j => <SelectItem key={j.id} value={j.id}>{j.nombre}</SelectItem>)}
                 </SelectContent>
               </Select>
@@ -387,6 +387,8 @@ export default function GestionCompras() {
       {/* List */}
       {loading ? (
         <div className="flex justify-center py-16"><Loader2 className="h-8 w-8 animate-spin" style={{ color: "hsl(155 45% 45%)" }} /></div>
+      ) : isError ? (
+        <QueryError onRetry={() => refetch()} />
       ) : compras.length === 0 ? (
         <div className="text-center py-16 text-muted-foreground">
           <Receipt className="h-10 w-10 mx-auto mb-3 opacity-20" />

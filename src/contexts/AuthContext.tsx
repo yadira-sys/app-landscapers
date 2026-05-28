@@ -16,6 +16,8 @@ interface AuthContextType {
   role: AppRole | null;
   profile: Profile | null;
   loading: boolean;
+  roleError: boolean;
+  retryRole: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   isAdmin: boolean;
@@ -31,6 +33,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [role, setRole] = useState<AppRole | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [roleError, setRoleError] = useState(false);
 
   const fetchRoleAndProfile = async (userId: string, isMounted?: () => boolean) => {
     try {
@@ -39,11 +42,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         supabase.from("profiles").select("*").eq("id", userId).maybeSingle(),
       ]);
       if (isMounted && !isMounted()) return;
-      if (roleRes.data) setRole(roleRes.data.role as AppRole);
+      if (roleRes.error) throw roleRes.error;
+      setRole((roleRes.data?.role as AppRole) ?? null);
       if (profileRes.data) setProfile(profileRes.data as Profile);
+      setRoleError(false);
     } catch (e) {
       console.error("Error fetching role/profile:", e);
+      if (isMounted && !isMounted()) return;
+      setRoleError(true);
     }
+  };
+
+  const retryRole = async () => {
+    if (!user) return;
+    setRoleError(false);
+    setLoading(true);
+    await fetchRoleAndProfile(user.id);
+    setLoading(false);
   };
 
   useEffect(() => {
@@ -95,10 +110,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setSession(session);
           setUser(session?.user ?? null);
           if (session?.user) {
+            setLoading(true);
             await fetchRoleAndProfile(session.user.id, () => mounted);
+            if (mounted) setLoading(false);
           } else {
             setRole(null);
             setProfile(null);
+            setRoleError(false);
           }
         }
       }
@@ -118,6 +136,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = async () => {
     setRole(null);
     setProfile(null);
+    setRoleError(false);
     await supabase.auth.signOut();
   };
 
@@ -127,7 +146,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider value={{
-      user, session, role, profile, loading,
+      user, session, role, profile, loading, roleError, retryRole,
       signIn, signOut, isAdmin, isEncargado, isJardinero,
     }}>
       {children}

@@ -1,4 +1,5 @@
-import { useEffect, useState, useRef } from "react";
+import { useState, useRef } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
@@ -18,6 +19,7 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import QueryError from "@/components/QueryError";
 
 type Urgencia = "alta" | "media" | "baja";
 type Estado = "abierta" | "en_proceso" | "resuelta";
@@ -49,9 +51,7 @@ const estadoConfig: Record<Estado, { label: string }> = {
 export default function IncidenciasJardinero() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [incidencias, setIncidencias] = useState<Incidencia[]>([]);
-  const [jardines, setJardines] = useState<Jardin[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -63,27 +63,33 @@ export default function IncidenciasJardinero() {
     foto: null as File | null,
   });
 
-  const fetchData = async () => {
-    if (!user) return;
-    const [incRes, jardinesRes] = await Promise.all([
-      supabase
-        .from("incidencias")
-        .select("id, descripcion, urgencia, estado, foto_url, created_at, jardines(nombre)")
-        .eq("jardinero_id", user.id)
-        .order("created_at", { ascending: false }),
-      supabase
-        .from("jardines")
-        .select("id, nombre")
-        .eq("activo", true)
-        .order("nombre"),
-    ]);
-    if (incRes.data) setIncidencias(incRes.data as unknown as Incidencia[]);
-    if (jardinesRes.data) setJardines(jardinesRes.data as Jardin[]);
-    setLoading(false);
-  };
+  const { data, isLoading: loading, isError, refetch } = useQuery({
+    queryKey: ["incidencias-jardinero", user?.id],
+    enabled: !!user,
+    queryFn: async () => {
+      const [incRes, jardinesRes] = await Promise.all([
+        supabase
+          .from("incidencias")
+          .select("id, descripcion, urgencia, estado, foto_url, created_at, jardines(nombre)")
+          .eq("jardinero_id", user!.id)
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("jardines")
+          .select("id, nombre")
+          .eq("activo", true)
+          .order("nombre"),
+      ]);
+      if (incRes.error) throw incRes.error;
+      if (jardinesRes.error) throw jardinesRes.error;
+      return {
+        incidencias: (incRes.data ?? []) as unknown as Incidencia[],
+        jardines: (jardinesRes.data ?? []) as Jardin[],
+      };
+    },
+  });
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { fetchData(); }, [user]);
+  const incidencias = data?.incidencias ?? [];
+  const jardines = data?.jardines ?? [];
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -117,7 +123,7 @@ export default function IncidenciasJardinero() {
       toast({ title: "✅ Incidencia registrada" });
       setOpen(false);
       setForm({ jardin_id: "", descripcion: "", urgencia: "baja", foto: null });
-      await fetchData();
+      queryClient.invalidateQueries({ queryKey: ["incidencias-jardinero"] });
     }
     setSubmitting(false);
   };
@@ -127,6 +133,8 @@ export default function IncidenciasJardinero() {
       <Loader2 className="h-8 w-8 animate-spin text-primary" />
     </div>
   );
+
+  if (isError) return <QueryError onRetry={() => refetch()} />;
 
   return (
     <div className="p-4 space-y-4">
