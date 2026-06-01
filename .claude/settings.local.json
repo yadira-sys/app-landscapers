@@ -53,7 +53,9 @@
       "Bash(npx supabase:*)",
       "Bash(curl -s -X POST https://imngbfxhtkjntavwzwuv.supabase.co/storage/v1/policy -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImltbmdiZnhodGtqbnRhdnd6d3V2Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NjA0MzIxNCwiZXhwIjoyMDkxNjE5MjE0fQ.mfRikTerurjRhEufYbnIuRv1ckH7yk5H664bvBcEvx8' -H 'Content-Type: application/json' -d '{\"bucket_id\":\"presupuestos\",\"name\":\"authenticated-read\",\"definition\":{\"operation\":\"SELECT\",\"check\":\"\\(auth.role\\(\\) = '\\\\''authenticated'\\\\''\\)\"}}')",
       "Bash(SUPABASE_ACCESS_TOKEN=\"sbp_8a25b2434a552eba34361b711cc64ad752143cc6\" npx supabase functions deploy setup-storage --project-ref imngbfxhtkjntavwzwuv)",
-      "Bash(SUPABASE_ACCESS_TOKEN=\"sbp_8a25b2434a552eba34361b711cc64ad752143cc6\" npx supabase functions deploy manage-worker --project-ref imngbfxhtkjntavwzwuv)"
+      "Bash(SUPABASE_ACCESS_TOKEN=\"sbp_8a25b2434a552eba34361b711cc64ad752143cc6\" npx supabase functions deploy manage-worker --project-ref imngbfxhtkjntavwzwuv)",
+      "mcp__cfba347d-0bc0-4821-b166-75b99e26c527__get_advisors",
+      "mcp__cfba347d-0bc0-4821-b166-75b99e26c527__get_logs"
     ]
   }
 }

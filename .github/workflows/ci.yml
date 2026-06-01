@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    name: ${{ matrix.task }}
+    runs-on: ubuntu-latest
+    continue-on-error: ${{ matrix.task == 'typecheck' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        task: [lint, typecheck, test, build]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - name: Lint
+        if: matrix.task == 'lint'
+        run: npm run lint
+      - name: Typecheck
+        if: matrix.task == 'typecheck'
+        run: npx tsc -p tsconfig.app.json --noEmit
+      - name: Test
+        if: matrix.task == 'test'
+        run: npm test
+      - name: Build
+        if: matrix.task == 'build'
+        run: npm run build
